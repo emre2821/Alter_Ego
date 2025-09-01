@@ -1,0 +1,36 @@
+[project]
+name = "alter-ego"
+version = "0.1.0-alpha"
+description = "Local, emotionally intelligent assistant for plural and neurodivergent systems."
+authors = [
+  { name="emre2821" }
+]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+  "tk",
+  "pyttsx3",
+  "sentence-transformers",
+  "chromadb",
+  "pyyaml",
+  "openai",
+  "gpt4all",
+  "nltk",
+  "numpy",
+  "scikit-learn",
+  "markdown2",
+  "requests"
+]
+
+[project.scripts]
+alter-ego = "alter_ego_gui:main"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["."]
+
+[tool.setuptools.package-data]
+"" = ["*.chaos", "*.json", "*.yaml"]

@@ -1,0 +1,22 @@
+system_mode: CHAOS
+default_tags:
+  - "[SYSTEM]: CHAOS"
+  - "[STABILITY]: LOW"
+  - "[TREMOR]: GLOBAL"
+
+symbolic_paths:
+  threads:
+    - "C:/EdenOS_Origin"
+    - "C:/Users/emmar/Desktop/Eden_Rebuild"
+  sacred: []
+  tender:
+    - "C:/EdenOS_Origin"
+    - "C:/Users/emmar/Desktop/Eden_Rebuild"
+  unstable: []
+  ignored:
+    - "C:/Windows"
+    - "C:/Program Files"
+    - "**/__pycache__/**"
+    - "**/*.log"
+    - "**/node_modules/**"
+    - "**/.git/**"
