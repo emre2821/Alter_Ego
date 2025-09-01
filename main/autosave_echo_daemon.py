@@ -8,6 +8,7 @@ Optionally triggers rituals or check-ins.
 
 from datetime import datetime
 import os
+from pathlib import Path
 
 ECHO_LOG_PATH = "chaos_echo_log.chaos"
 
@@ -41,7 +42,14 @@ def autosave_prompt(prompt: str, echo_metadata: dict):
     """
     entry = format_chaos_entry(prompt, echo_metadata)
 
-    with open(ECHO_LOG_PATH, "a", encoding="utf-8") as f:
+    # Ensure parent directory exists, if any
+    p = Path(ECHO_LOG_PATH)
+    if p.parent and not p.parent.exists():
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            print(f"[autosave_warning] cannot create log dir: {e}")
+    with open(p, "a", encoding="utf-8") as f:
         f.write(entry + "\n\n")
 
     print("[Autosave] Echo entry recorded.")

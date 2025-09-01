@@ -4,14 +4,25 @@
 import tkinter as tk
 from tkinter import scrolledtext
 from pathlib import Path
-import pyttsx3
+import os
+try:
+    import pyttsx3
+except Exception:  # pyttsx3 may be unavailable
+    pyttsx3 = None
 from alter_shell import AlterShell
 from persona_fronting import PersonaFronting
 
 # === Voice Setup ===
-voice_engine = pyttsx3.init()
-voice_engine.setProperty('rate', 165)
-voice_engine.setProperty('volume', 0.9)
+ENABLE_TTS = os.getenv('ENABLE_TTS', '1') != '0'
+voice_engine = None
+if ENABLE_TTS and pyttsx3 is not None:
+    try:
+        voice_engine = pyttsx3.init()
+        voice_engine.setProperty('rate', 165)
+        voice_engine.setProperty('volume', 0.9)
+    except Exception as e:
+        print(f"[tts_disabled] {e}")
+        voice_engine = None
 
 # === GUI Class ===
 class AlterEgoGUI:
@@ -37,9 +48,31 @@ class AlterEgoGUI:
         self.text_area.tag_config("user", foreground="#85d6ff")
         self.text_area.tag_config("alter", foreground="#f5b6ff")
 
+        # Persona availability banner
+        try:
+            from pathlib import Path
+            import os
+            persona_root = os.getenv('PERSONA_ROOT') or r"C:\\EdenOS_Origin\\all_daemons"
+            pr = Path(persona_root)
+            count = 0
+            if pr.exists():
+                count = sum(1 for _ in pr.rglob('*.mirror.json')) + sum(1 for _ in pr.rglob('*.chaos'))
+            if count == 0:
+                self.display_text(
+                    f"[notice] No personas found under '{persona_root}'. Set PERSONA_ROOT or add files.\n\n",
+                    "alter",
+                )
+        except Exception as e:
+            self.display_text(f"[notice] Persona check skipped: {e}\n\n", "alter")
+
     def speak(self, text):
-        voice_engine.say(text)
-        voice_engine.runAndWait()
+        if voice_engine is None:
+            return
+        try:
+            voice_engine.say(text)
+            voice_engine.runAndWait()
+        except Exception as e:
+            print(f"[tts_warning] {e}")
 
     def send_input(self, event=None):
         user_text = self.entry.get().strip()

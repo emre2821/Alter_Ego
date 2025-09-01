@@ -3,6 +3,7 @@
 
 import json
 from pathlib import Path
+# Use local adapter which can delegate to Lyss if available
 from chaos_parser_core import parse_chaos_file
 
 class Persona:
@@ -26,7 +27,8 @@ class PersonaSimulator:
 
     def load_all_personas(self):
         personas = {}
-        for file in self.persona_dir.glob("*.chaos"):
+        # search recursively to support shared persona roots
+        for file in self.persona_dir.rglob("*.chaos"):
             data = parse_chaos_file(file)
             name = data.get("name", file.stem)
             tone = data.get("tone", "neutral")
@@ -34,7 +36,7 @@ class PersonaSimulator:
             phrases = data.get("phrases", [])
             overrides = data.get("overrides", {})
             personas[name] = Persona(name, tone, keywords, phrases, overrides)
-        for file in self.persona_dir.glob("*.json"):
+        for file in self.persona_dir.rglob("*.json"):
             if 'mirror' in file.stem:
                 with open(file, 'r', encoding='utf-8') as f:
                     data = json.load(f)

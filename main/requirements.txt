@@ -1,4 +1,3 @@
-tk
 pyttsx3
 sentence-transformers
 chromadb
