@@ -1,2 +1,6 @@
 *.zip
 /main/__pycache__
+*.log
+*.lock
+*.code-workspace
+*.db
