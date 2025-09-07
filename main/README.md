@@ -59,6 +59,12 @@
 * **Personas** — Defined in `.json` and `.mirror` formats
 * **Echo Logs** — Captures emotional states, fronting history, tremor patterns
 
+## Configuring symbolic paths
+
+Edit `symbolic_config.yaml` to point symbolic path sets like `threads`, `tender`, or `sacred` to your own folders.
+Paths may use `~` or environment variables such as `${PROJECTS}` so the file can move between systems.
+During ingestion or watchdog runs, any listed directories that do not exist are skipped automatically.
+
 ---
 
 ## Example Interaction

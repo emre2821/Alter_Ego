@@ -6,16 +6,11 @@ default_tags:
 
 symbolic_paths:
   threads:
-    - "C:/EdenOS_Origin"
-      - "C:/Users/alter_ego/Desktop/Eden_Rebuild"
-  sacred: []
-  tender:
-    - "C:/EdenOS_Origin"
-      - "C:/Users/alter_ego/Desktop/Eden_Rebuild"
+
   unstable: []
   ignored:
-    - "C:/Windows"
-    - "C:/Program Files"
+    - "${SYSTEMROOT}"
+    - "${PROGRAMFILES}"
     - "**/__pycache__/**"
     - "**/*.log"
     - "**/node_modules/**"
