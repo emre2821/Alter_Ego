@@ -1,5 +1,3 @@
-# Note: The files have yet to be properly renamed at this time. Anything that is "emma_*.py" will be renamed "alter_ego_*.py", so dont @ me!
-
 # Alter/Ego
 
 **Alter/Ego** is a fully local, emotionally intelligent assistant tailored for systems, plurals, and neurodivergent users. It listens deeply, speaks with nuanced tone, and reflects through symbolic memory. Built to honor multiplicity and adaptive identity.
@@ -19,10 +17,16 @@
 
 ## Quickstart
 
-1. **Install dependencies:**
+1. **Install dependencies** — Using `requirements.txt` is the recommended approach for a reproducible local setup:
 
    ```bash
    pip install -r requirements.txt
+   ```
+
+   If you prefer to use the project metadata directly, you can install via `pyproject.toml`:
+
+   ```bash
+   pip install .
    ```
 
 2. **Run the application:**

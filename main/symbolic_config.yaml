@@ -6,12 +6,7 @@ default_tags:
 
 symbolic_paths:
   threads:
-    - "~/EdenOS_Origin"
-    - "~/Eden_Rebuild"
-  sacred: []
-  tender:
-    - "~/EdenOS_Origin"
-    - "~/Eden_Rebuild"
+
   unstable: []
   ignored:
     - "${SYSTEMROOT}"
