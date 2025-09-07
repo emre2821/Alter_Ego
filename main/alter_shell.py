@@ -22,7 +22,7 @@ class AlterShell:
         self.fronting = PersonaFronting()
 
         # SQLite DB path (override with MEMORY_DB env var)
-        self.db_path = os.getenv("MEMORY_DB", os.path.join(os.getcwd(), "emma_memory.db"))
+        self.db_path = os.getenv("MEMORY_DB", os.path.join(os.getcwd(), "alter_ego_memory.db"))
         init_db(self.db_path)
 
         # Shared LLM instance loaded in background
