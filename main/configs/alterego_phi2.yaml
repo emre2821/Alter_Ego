@@ -1,0 +1,38 @@
+base_model: microsoft/phi-2
+model_type: AutoModelForCausalLM
+tokenizer_type: AutoTokenizer
+
+load_in_4bit: true
+adapter: qlora
+lora_r: 8
+lora_alpha: 16
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - out_proj
+
+datasets:
+  - path: datasets/alterego/alterego.jsonl
+    type: chat
+
+sequence_len: 1024
+sample_packing: false
+train_on_inputs: false
+group_by_length: false
+
+gradient_checkpointing: true
+gradient_accumulation_steps: 4
+micro_batch_size: 1
+num_epochs: 2
+learning_rate: 2e-5
+lr_scheduler: cosine
+warmup_steps: 10
+
+output_dir: ./outputs/alterego-phi2
+save_total_limit: 2
+save_strategy: "epoch"
+
+dtype: float16
+use_peft: true
