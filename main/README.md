@@ -88,6 +88,16 @@ No internet or remote calls. Runs entirely on your machine for privacy, safety, 
 
 ---
 
+## Contributing
+
+See the [CONTRIBUTING](../CONTRIBUTING.md) guide for setup, coding style, and tests.
+
+Bug reports and feature requests can be opened via the issue templates:
+- [Bug report](../.github/ISSUE_TEMPLATE/bug_report.md)
+- [Feature request](../.github/ISSUE_TEMPLATE/feature_request.md)
+
+---
+
 ## Credits
 
 Voice and behavior inspired by fictional AI and archetypal guides from works like *Danganronpa*, *Persona*, and personal innerworld modeling.
