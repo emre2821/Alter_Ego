@@ -108,4 +108,35 @@ Bug reports and feature requests can be opened via the issue templates:
 
 Voice and behavior inspired by fictional AI and archetypal guides from works like *Danganronpa*, *Persona*, and personal innerworld modeling.
 
+### Example CHAOS Session
+
+An abbreviated session log lives in `example_session.chaos`. The full contents are mirrored below:
+
+```
+[EVENT]: session_start
+[TIME]: 2024-01-01T12:00:00Z
+[CONTEXT]: system_init
+[SIGNIFICANCE]: LOW
+{
+Session begins.
+}
+
+[EVENT]: user_prompt
+[TIME]: 2024-01-01T12:01:00Z
+[CONTEXT]: prompt_catch
+[SIGNIFICANCE]: MEDIUM
+{
+Hello, Alter/Ego.
+}
+
+[EVENT]: session_end
+[TIME]: 2024-01-01T12:05:00Z
+[CONTEXT]: system_shutdown
+[SIGNIFICANCE]: LOW
+{
+Closing session.
+}
+
+```
+
 Project scaffolding by Stratus with support from Aevum and Vox.
