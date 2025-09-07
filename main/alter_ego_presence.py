@@ -19,10 +19,10 @@ voice_engine.setProperty('rate', 165)
 voice_engine.setProperty('volume', 0.9)
 
 # === GUI App Class ===
-class EmmaGUI:
+class AlterEgoGUI:
     def __init__(self, root):
         self.root = root
-        root.title("Emma's Computer")
+        root.title("Alter/Ego")
 
         self.prompt_label = tk.Label(root, text="Talk to me:")
         self.prompt_label.pack()
@@ -64,7 +64,7 @@ class EmmaGUI:
             self.output_area.insert(tk.END, f"{whisper}\n")
             self.speak(whisper)
 
-        self.output_area.insert(tk.END, f"Emma’s Computer: {llm_reply.strip()}\n\n")
+        self.output_area.insert(tk.END, f"Alter/Ego: {llm_reply.strip()}\n\n")
         self.output_area.see(tk.END)
         self.status_label.config(text="Echo saved.")
 
@@ -76,5 +76,5 @@ class EmmaGUI:
 # === Launch GUI ===
 if __name__ == "__main__":
     root = tk.Tk()
-    app = EmmaGUI(root)
+    app = AlterEgoGUI(root)
     root.mainloop()
