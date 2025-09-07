@@ -19,10 +19,16 @@
 
 ## Quickstart
 
-1. **Install dependencies:**
+1. **Install dependencies** — Using `requirements.txt` is the recommended approach for a reproducible local setup:
 
    ```bash
    pip install -r requirements.txt
+   ```
+
+   If you prefer to use the project metadata directly, you can install via `pyproject.toml`:
+
+   ```bash
+   pip install .
    ```
 
 2. **Run the application:**
