@@ -1,0 +1,11 @@
+{
+  "bg": "#001a1a",
+  "text_bg": "#002e2e",
+  "text_fg": "#d0fffa",
+  "user_fg": "#03dac6",
+  "alter_fg": "#bb86fc",
+  "entry_bg": "#003d3d",
+  "entry_fg": "#eaffff",
+  "font_family": "Consolas",
+  "font_size": 12
+}

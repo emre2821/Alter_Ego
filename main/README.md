@@ -35,7 +35,12 @@
    python alter_ego_gui.py
    ```
 
-3. **Begin interacting.** The assistant will respond with adaptive tone and whisper when it detects emotional load.
+   3. **Begin interacting.** The assistant will respond with adaptive tone and whisper when it detects emotional load.
+
+### Themes
+
+The GUI looks for JSON theme files in `themes/` relative to `alter_ego_gui.py` (or a custom path via the `THEME_DIR` environment variable).
+If no external themes are found, Alter/Ego falls back to its built-in styles such as `eden`, `dark`, and `light`.
 
 ---
 
