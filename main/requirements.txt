@@ -1,9 +1,11 @@
-pyttsx3
-pyyaml
-openai
+chromadb
+gpt4all
+markdown2
 nltk
 numpy
-scikit-learn
-markdown2
+openai
+pyttsx3
+pyyaml
 requests
-gpt4all
+scikit-learn
+sentence-transformers
