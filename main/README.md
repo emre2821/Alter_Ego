@@ -56,6 +56,7 @@
 ## Storage & Persistence
 
 * **Memory Files** — Saved as `.chaos` logs using symbolic syntax
+* **Memory DB** — Embedding store in `alter_ego_memory.db`; override path with `MEMORY_DB`
 * **Personas** — Defined in `.json` and `.mirror` formats
 * **Echo Logs** — Captures emotional states, fronting history, tremor patterns
 
