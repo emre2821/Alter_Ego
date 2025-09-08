@@ -37,6 +37,15 @@
 
    3. **Begin interacting.** The assistant will respond with adaptive tone and whisper when it detects emotional load.
 
+### GUI Screenshot
+
+The repository no longer ships a static `gui_screenshot.png` file. To capture the interface:
+
+1. Launch the GUI with `python alter_ego_gui.py`.
+2. Use your operating system's screenshot tool to save an image of the window.
+
+An example screenshot is available at [this externally hosted image](https://via.placeholder.com/800x600.png?text=Alter/Ego+GUI). If the link ever fades, simply capture your own.
+
 ### Themes
 
 The GUI looks for JSON theme files in `themes/` relative to `alter_ego_gui.py` (or a custom path via the `THEME_DIR` environment variable).
