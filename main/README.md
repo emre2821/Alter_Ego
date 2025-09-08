@@ -39,12 +39,14 @@
 
 ### GUI Screenshot
 
-The repository no longer ships a static `gui_screenshot.png` file. To capture the interface:
+This repository does not include a static `gui_screenshot.png`.
+
+To generate a screenshot at runtime:
 
 1. Launch the GUI with `python alter_ego_gui.py`.
-2. Use your operating system's screenshot tool to save an image of the window.
+2. Use your operating system's screenshot tool (or any capture utility) to save the window.
 
-An example screenshot is available at [this externally hosted image](https://via.placeholder.com/800x600.png?text=Alter/Ego+GUI). If the link ever fades, simply capture your own.
+An example screenshot is hosted externally at [this image](https://via.placeholder.com/800x600.png?text=Alter/Ego+GUI). If the link ever fades, simply capture your own.
 
 ### Themes
 
