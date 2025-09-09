@@ -36,6 +36,20 @@ BACKENDS = {"transformers", "gpt4all", "ollama"}
 
 console = Console()
 
+CONSTITUTION_PATH = Path(__file__).resolve().parent / "eden.constitution.agent.chaosrights"
+CONSTITUTION_SHA256 = "cd06f0ba7f331d363e1184a21f2d35427638f38e26ba1d329f85cc4c8b201494"
+
+
+def verify_constitution() -> None:
+    if not CONSTITUTION_PATH.exists():
+        raise RuntimeError("Eden constitution is missing")
+    digest = hashlib.sha256(CONSTITUTION_PATH.read_bytes()).hexdigest()
+    if digest != CONSTITUTION_SHA256:
+        raise RuntimeError("Eden constitution has been altered")
+
+
+verify_constitution()
+
 # --------- Custom Palettes (CLI + future GUI theming) ----------
 PALETTES = {
     "eden_moonlit": {
