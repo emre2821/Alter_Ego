@@ -334,28 +334,29 @@ def ingest_path(cfg: Config, bank: MemoryBank, embedder: Embedder, path: Path):
     console.print(f"[green]Ingested {len(docs)} chunks from {len(files)} files.[/green]")
 
 # --------- Watcher ----------
-class _Handler(FileSystemEventHandler):
-    def __init__(self, cfg: Config, bank: MemoryBank, embedder: Embedder):
-        self.cfg = cfg
-        self.bank = bank
-        self.embedder = embedder
+if WATCHDOG_OK:
+    class _Handler(FileSystemEventHandler):
+        def __init__(self, cfg: Config, bank: MemoryBank, embedder: Embedder):
+            self.cfg = cfg
+            self.bank = bank
+            self.embedder = embedder
 
-    def on_modified(self, event):
-        self._maybe_ingest(event)
+        def on_modified(self, event):
+            self._maybe_ingest(event)
 
-    def on_created(self, event):
-        self._maybe_ingest(event)
+        def on_created(self, event):
+            self._maybe_ingest(event)
 
-    def _maybe_ingest(self, event):
-        if event.is_directory: 
-            return
-        p = Path(event.src_path)
-        if within_any_glob(p, self.cfg.ignore_globs): 
-            return
-        if p.suffix.lower() not in self.cfg.allowed_exts:
-            return
-        console.print(f"[magenta]Detected change: {p}[/magenta]")
-        ingest_path(self.cfg, self.bank, self.embedder, p)
+        def _maybe_ingest(self, event):
+            if event.is_directory:
+                return
+            p = Path(event.src_path)
+            if within_any_glob(p, self.cfg.ignore_globs):
+                return
+            if p.suffix.lower() not in self.cfg.allowed_exts:
+                return
+            console.print(f"[magenta]Detected change: {p}[/magenta]")
+            ingest_path(self.cfg, self.bank, self.embedder, p)
 
 def watch_path(cfg: Config, bank: MemoryBank, embedder: Embedder, path: Path):
     if not WATCHDOG_OK:
