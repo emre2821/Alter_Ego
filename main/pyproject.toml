@@ -18,7 +18,11 @@ dependencies = [
   "numpy",
   "scikit-learn",
   "markdown2",
-  "requests"
+  "requests",
+  "pydantic",
+  "rich",
+  "typer",
+  "watchdog"
 ]
 
 [project.scripts]
@@ -32,4 +36,4 @@ build-backend = "setuptools.build_meta"
 packages = ["."]
 
 [tool.setuptools.package-data]
-"" = ["*.chaos", "*.json", "*.yaml"]
+"" = ["*.chaos", "*.json", "*.yaml", "eden.constitution.agent.chaosrights"]

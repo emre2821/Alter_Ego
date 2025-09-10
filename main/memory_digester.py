@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from chaos_parser_core import parse_chaos_file
 from persona_simulator import PersonaSimulator
-from datetime import datetime
+from datetime import datetime, timezone
 
 class MemoryDigester:
     def __init__(self, root_path, persona_sim: PersonaSimulator, pace=1.5):
@@ -20,7 +20,7 @@ class MemoryDigester:
             if file_path.suffix in ['.txt', '.md', '.chaos', '.json']:
                 content = file_path.read_text(encoding='utf-8', errors='ignore')
                 styled = self.sim.simulate(persona_name, f"Reading file: {file_path.name}\n{content[:500]}...")
-                timestamp = datetime.utcnow().isoformat() + 'Z'
+                timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
                 entry = {
                     'timestamp': timestamp,
                     'persona': persona_name,

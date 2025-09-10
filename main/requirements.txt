@@ -4,8 +4,12 @@ markdown2
 nltk
 numpy
 openai
+pydantic
 pyttsx3
 pyyaml
 requests
+rich
 scikit-learn
 sentence-transformers
+typer
+watchdog
