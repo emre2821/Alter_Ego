@@ -59,7 +59,13 @@ class AlterShell:
             return "Booting model… give me a few seconds."
 
         # 3) generate LLM output with our preloaded instance
-        llm_output = generate_alter_ego_response(user_input, memory_used=mems, model=self._model)
+        persona = self.fronting.get_active() or "Rhea"
+        llm_output = generate_alter_ego_response(
+            user_input,
+            memory_used=mems,
+            model=self._model,
+            persona=persona,
+        )
 
         # 4) post-process echo
         response, echo = self.echo_response.respond(user_input, llm_output)

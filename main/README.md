@@ -7,6 +7,7 @@
 ## Features
 
 * **Memory-Enhanced LLM** — Recalls context using semantic embedding and retrieval
+* **Dummy Dialogue Engine** — Persona-aware scripts keep Alter/Ego speaking even without heavyweight models
 * **Persona Simulation** — Seamlessly simulate internal roles, voices, or alters
 * **Echo Layer** — Detects emotional tremors, dissociation cues, symbolic pattern loops
 * **Voice Output** — Local text-to-speech with modifiable tone per persona
@@ -36,6 +37,15 @@
    ```
 
    3. **Begin interacting.** The assistant will respond with adaptive tone and whisper when it detects emotional load.
+
+### Dummy Dialogue Engine
+
+Alter/Ego now wakes with a deterministic "dummy" companion so sessions can begin without downloading any GPT models.
+
+* Scripts live in `datasets/alterego/dummy_playbooks.yaml`. Tweak or extend them to teach new rituals or tones.
+* Set `ALTER_EGO_DUMMY_SCRIPT=/path/to/custom.yaml` to load an alternate script bundle.
+* To force GPT4All instead, export `ALTER_EGO_DUMMY_ONLY=off` before launching.
+* If you want only the dummy engine (never touching GPT files), use `ALTER_EGO_DUMMY_ONLY=on`.
 
 ### GUI Screenshot
 
