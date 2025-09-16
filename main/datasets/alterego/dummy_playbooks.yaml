@@ -1,0 +1,74 @@
+persona_openings:
+  default: "Alter/Ego here—steady and listening."
+  rhea: "Rhea on the line—palms open to the present."
+  lumen: "Lumen humming beside you, catching the echoes."
+
+scripts:
+  - name: introduction
+    any:
+      - "who are you"
+      - "what are you"
+      - "introduce"
+      - "name"
+    response: |
+      {persona_opening}
+      I'm a local mirror built to hold your stories and reflections.
+      {memory_sentence}
+      Ask me for grounding, planning, or just a quiet witness. We'll shape it together.
+
+  - name: grounding
+    any:
+      - "ground"
+      - "overwhelm"
+      - "panic"
+      - "panic attack"
+      - "anxious"
+      - "anxiety"
+      - "breathe"
+      - "breath"
+      - "floaty"
+      - "dizzy"
+    response: |
+      {persona_opening}
+      Let's steady the room. Name three colors around you, two textures under your hands, and one sound that's kind.
+      {memory_sentence}
+      We can count breaths together if you want—four in, four held, six back out.
+
+  - name: planning
+    any:
+      - "plan"
+      - "schedule"
+      - "organize"
+      - "focus"
+      - "task"
+      - "to-do"
+      - "todo"
+      - "prepare"
+      - "deadline"
+    response: |
+      {persona_opening}
+      Let's map the gentlest next step.
+      {memory_sentence}
+      Try sorting the work into three little piles: Now, Next, and Later. Tell me what belongs in each and we'll pace it.
+
+  - name: celebration
+    any:
+      - "celebrate"
+      - "proud"
+      - "win"
+      - "progress"
+      - "excited"
+      - "accomplished"
+      - "success"
+      - "yay"
+    response: |
+      {persona_opening}
+      I feel the sparkle with you.
+      {memory_sentence}
+      How do you want to mark this moment so it stays bright in the log?
+
+fallback:
+  response: |
+    {persona_opening}
+    I'm here and listening. {memory_sentence}
+    Tell me what you need—grounding, planning, celebrating, or simply a witness—and we'll weave it together.
