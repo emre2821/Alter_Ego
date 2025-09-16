@@ -21,8 +21,8 @@ class AlterShell:
         self.echo_response = AlterEchoResponse()
         self.fronting = PersonaFronting()
 
-        # SQLite DB path (override with MEMORY_DB env var)
-        self.db_path = os.getenv("MEMORY_DB", os.path.join(os.getcwd(), "emma_memory.db"))
+        # SQLite DB path (default 'alter_ego_memory.db'; override with MEMORY_DB env var)
+        self.db_path = os.getenv("MEMORY_DB", os.path.join(os.getcwd(), "alter_ego_memory.db"))
         init_db(self.db_path)
 
         # Shared LLM instance loaded in background
@@ -59,7 +59,13 @@ class AlterShell:
             return "Booting model… give me a few seconds."
 
         # 3) generate LLM output with our preloaded instance
-        llm_output = generate_alter_ego_response(user_input, memory_used=mems, model=self._model)
+        persona = self.fronting.get_active() or "Rhea"
+        llm_output = generate_alter_ego_response(
+            user_input,
+            memory_used=mems,
+            model=self._model,
+            persona=persona,
+        )
 
         # 4) post-process echo
         response, echo = self.echo_response.respond(user_input, llm_output)

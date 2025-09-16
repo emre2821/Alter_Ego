@@ -3,7 +3,7 @@ llm_model_name: DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf
 
 embed_model_name: all-MiniLM-L6-v2
 
-db_path: emma_memory.db
+db_path: alter_ego_memory.db
 embedding_cache: true
 
 top_k: 5

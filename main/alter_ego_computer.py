@@ -36,6 +36,20 @@ BACKENDS = {"transformers", "gpt4all", "ollama"}
 
 console = Console()
 
+CONSTITUTION_PATH = Path(__file__).resolve().parent / "eden.constitution.agent.chaosrights"
+CONSTITUTION_SHA256 = "cd06f0ba7f331d363e1184a21f2d35427638f38e26ba1d329f85cc4c8b201494"
+
+
+def verify_constitution() -> None:
+    if not CONSTITUTION_PATH.exists():
+        raise RuntimeError("Eden constitution is missing")
+
+    if digest != CONSTITUTION_SHA256:
+        raise RuntimeError("Eden constitution has been altered")
+
+
+verify_constitution()
+
 # --------- Custom Palettes (CLI + future GUI theming) ----------
 PALETTES = {
     "eden_moonlit": {
@@ -74,7 +88,7 @@ DEFAULT_PALETTE = "eden_moonlit"
 # --------- Config schema ----------
 class Config(BaseModel):
     data_dir: str = "./data"
-    db_dir: str = "./emma_db"
+    db_dir: str = "./alter_ego_db"
     palette: str = DEFAULT_PALETTE
     embed_model_name: str = "all-MiniLM-L6-v2"
     llm_backend: str = "transformers"  # transformers | gpt4all | ollama
@@ -83,9 +97,9 @@ class Config(BaseModel):
     chunk_chars: int = 1200
     chunk_overlap: int = 200
     collections: Dict[str, str] = {
-        "docs": "emma_docs",
-        "mem": "emma_memories",
-        "states": "emma_state_notes",
+        "docs": "alter_ego_docs",
+        "mem": "alter_ego_memories",
+        "states": "alter_ego_state_notes",
     }
     allowed_exts: List[str] = [
         ".txt", ".md", ".rst", ".py", ".js", ".ts", ".json", ".yaml", ".yml",
@@ -242,7 +256,7 @@ class LLM:
 
 # --------- Core RAG flow ----------
 SYSTEM_VIBE = (
-    "You are Emma’s Computer. Supportive, precise, and emotionally aware. "
+    "You are Alter/Ego. Supportive, precise, and emotionally aware. "
     "You use the memorybank to recall facts. If the user seems overwhelmed, you slow down, "
     "offer micro-steps, and ask gentle consent questions. Be concise. No hallucinations."
 )
@@ -252,7 +266,7 @@ def make_prompt(context_chunks: List[str], question: str) -> str:
     return f"""[system]
 {SYSTEM_VIBE}
 
-[context from Emma’s files and memories]
+[context from Alter/Ego's files and memories]
 {ctx}
 
 [instruction]
@@ -262,7 +276,7 @@ End with a one-line check-in if emotional load seems high.
 [question]
 {question}
 
-[answer as Emma’s Computer]
+[answer as Alter/Ego]
 """
 
 def retrieve_context(bank: MemoryBank, embedder: Embedder, query: str, top_k: int) -> List[str]:
@@ -334,28 +348,29 @@ def ingest_path(cfg: Config, bank: MemoryBank, embedder: Embedder, path: Path):
     console.print(f"[green]Ingested {len(docs)} chunks from {len(files)} files.[/green]")
 
 # --------- Watcher ----------
-class _Handler(FileSystemEventHandler):
-    def __init__(self, cfg: Config, bank: MemoryBank, embedder: Embedder):
-        self.cfg = cfg
-        self.bank = bank
-        self.embedder = embedder
+if WATCHDOG_OK:
+    class _Handler(FileSystemEventHandler):
+        def __init__(self, cfg: Config, bank: MemoryBank, embedder: Embedder):
+            self.cfg = cfg
+            self.bank = bank
+            self.embedder = embedder
 
-    def on_modified(self, event):
-        self._maybe_ingest(event)
+        def on_modified(self, event):
+            self._maybe_ingest(event)
 
-    def on_created(self, event):
-        self._maybe_ingest(event)
+        def on_created(self, event):
+            self._maybe_ingest(event)
 
-    def _maybe_ingest(self, event):
-        if event.is_directory: 
-            return
-        p = Path(event.src_path)
-        if within_any_glob(p, self.cfg.ignore_globs): 
-            return
-        if p.suffix.lower() not in self.cfg.allowed_exts:
-            return
-        console.print(f"[magenta]Detected change: {p}[/magenta]")
-        ingest_path(self.cfg, self.bank, self.embedder, p)
+        def _maybe_ingest(self, event):
+            if event.is_directory:
+                return
+            p = Path(event.src_path)
+            if within_any_glob(p, self.cfg.ignore_globs):
+                return
+            if p.suffix.lower() not in self.cfg.allowed_exts:
+                return
+            console.print(f"[magenta]Detected change: {p}[/magenta]")
+            ingest_path(self.cfg, self.bank, self.embedder, p)
 
 def watch_path(cfg: Config, bank: MemoryBank, embedder: Embedder, path: Path):
     if not WATCHDOG_OK:
@@ -486,7 +501,7 @@ def suggest_upgrades(cfg: Config, bank: MemoryBank) -> List[str]:
 
     # backups
     if not Path(cfg.db_dir, "BACKUP").exists():
-        suggestions.append("No DB backup detected. Consider `rsync -a emma_db/ emma_db/BACKUP/` weekly.")
+        suggestions.append("No DB backup detected. Consider `rsync -a alter_ego_db/ alter_ego_db/BACKUP/` weekly.")
 
     # memories presence
     try:
@@ -507,17 +522,17 @@ def palette(cfg: Config):
 def banner(cfg: Config):
     pal = palette(cfg)
     console.print(Panel.fit(
-        "[b]Emma’s Computer[/b]\nLocal RAG • MemoryDB • Dupe Scanner • Upgrades",
+        "[b]Alter/Ego[/b]\nLocal RAG • MemoryDB • Dupe Scanner • Upgrades",
         title="[b]Paradigm Eden[/b]", border_style=pal["accent"])
     )
 
 @app.command()
 def init(
     data: str = typer.Option("./data", help="Folder to ingest/watch"),
-    db: str = typer.Option("./emma_db", help="ChromaDB persistence dir"),
+    db: str = typer.Option("./alter_ego_db", help="ChromaDB persistence dir"),
     palette_name: str = typer.Option(DEFAULT_PALETTE, help=f"One of: {', '.join(PALETTES.keys())}")
 ):
-    cfg_path = Path("emma_config.yaml")
+    cfg_path = Path("alter_ego_config.yaml")
     cfg = load_config(cfg_path)
     cfg.data_dir = data
     cfg.db_dir = db
@@ -533,7 +548,7 @@ def init(
 
 @app.command()
 def ingest(path: str = typer.Argument(..., help="File or folder to ingest")):
-    cfg = load_config(Path("emma_config.yaml"))
+    cfg = load_config(Path("alter_ego_config.yaml"))
     banner(cfg)
     bank = MemoryBank(cfg)
     embedder = Embedder(cfg.embed_model_name)
@@ -543,7 +558,7 @@ def ingest(path: str = typer.Argument(..., help="File or folder to ingest")):
 
 @app.command("watch")
 def watch_cmd(path: str = typer.Argument(None, help="Folder to watch (defaults to config data_dir)")):
-    cfg = load_config(Path("emma_config.yaml"))
+    cfg = load_config(Path("alter_ego_config.yaml"))
     banner(cfg)
     bank = MemoryBank(cfg)
     embedder = Embedder(cfg.embed_model_name)
@@ -558,7 +573,7 @@ def ask(
     max_tokens: int = typer.Option(512),
     temperature: float = typer.Option(0.7),
 ):
-    cfg = load_config(Path("emma_config.yaml"))
+    cfg = load_config(Path("alter_ego_config.yaml"))
     if backend: cfg.llm_backend = backend
     if model_name: cfg.llm_model_name = model_name
     banner(cfg)
@@ -589,7 +604,7 @@ def ask(
 
 @app.command("scan-dupes")
 def scan_dupes_cmd():
-    cfg = load_config(Path("emma_config.yaml"))
+    cfg = load_config(Path("alter_ego_config.yaml"))
     banner(cfg)
     bank = MemoryBank(cfg)
     report = scan_dupes(cfg, bank)
@@ -637,7 +652,7 @@ def consolidate(
     strategy: str = typer.Option("newest", help="newest | oldest | keep_first"),
     only_paths: bool = typer.Option(False, help="Just print plan; don’t delete")
 ):
-    cfg = load_config(Path("emma_config.yaml"))
+    cfg = load_config(Path("alter_ego_config.yaml"))
     banner(cfg)
     bank = MemoryBank(cfg)
     report = scan_dupes(cfg, bank)
@@ -645,7 +660,7 @@ def consolidate(
 
 @app.command("list-dupes")
 def list_dupes(only_paths: bool = typer.Option(True, help="Only print paths")):
-    cfg = load_config(Path("emma_config.yaml"))
+    cfg = load_config(Path("alter_ego_config.yaml"))
     banner(cfg)
     bank = MemoryBank(cfg)
     report = scan_dupes(cfg, bank)
@@ -657,7 +672,7 @@ def list_dupes(only_paths: bool = typer.Option(True, help="Only print paths")):
 
 @app.command("suggest")
 def suggest():
-    cfg = load_config(Path("emma_config.yaml"))
+    cfg = load_config(Path("alter_ego_config.yaml"))
     banner(cfg)
     bank = MemoryBank(cfg)
     sugg = suggest_upgrades(cfg, bank)
@@ -672,7 +687,7 @@ def suggest():
 
 @app.command("config")
 def config_cmd(show: bool = typer.Option(True), set_backend: Optional[str] = None, set_model: Optional[str] = None, set_palette: Optional[str] = None):
-    cfg_path = Path("emma_config.yaml")
+    cfg_path = Path("alter_ego_config.yaml")
     cfg = load_config(cfg_path)
     changed = False
     if set_backend:
