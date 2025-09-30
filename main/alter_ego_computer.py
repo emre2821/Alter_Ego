@@ -44,6 +44,7 @@ def verify_constitution() -> None:
     if not CONSTITUTION_PATH.exists():
         raise RuntimeError("Eden constitution is missing")
 
+    digest = hashlib.sha256(CONSTITUTION_PATH.read_bytes()).hexdigest()
     if digest != CONSTITUTION_SHA256:
         raise RuntimeError("Eden constitution has been altered")
 
