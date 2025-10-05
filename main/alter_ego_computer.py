@@ -5,7 +5,7 @@
 # License: MIT
 
 from __future__ import annotations
-import os, sys, time, json, hashlib, threading, queue, re, textwrap, shutil
+import os, sys, time, json, hashlib, threading, queue, re, textwrap, shutil, importlib
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -21,8 +21,11 @@ import yaml
 
 import chromadb
 from chromadb.config import Settings
-from sentence_transformers import SentenceTransformer
 
+EMBED_IMPORT_HINTS = {
+    "fastembed": "fastembed",
+    "sentence_transformers": "sentence-transformers",
+}
 # Optional imports guarded:
 try:
     from watchdog.observers import Observer
@@ -90,7 +93,7 @@ class Config(BaseModel):
     data_dir: str = "./data"
     db_dir: str = "./alter_ego_db"
     palette: str = DEFAULT_PALETTE
-    embed_model_name: str = "all-MiniLM-L6-v2"
+    embed_model_name: str = "all-MiniLM-L6-v2"  # or fastembed:BAAI/bge-small-en-v1.5
     llm_backend: str = "transformers"  # transformers | gpt4all | ollama
     llm_model_name: str = "microsoft/phi-3-mini-4k-instruct"  # or GPT4All .bin name, or Ollama tag
     top_k: int = 5
@@ -172,10 +175,62 @@ def now_iso() -> str:
 # --------- Embeddings ----------
 class Embedder:
     def __init__(self, model_name: str):
-        self.model = SentenceTransformer(model_name)
+        provider, name = self._parse_model_name(model_name)
+        self.provider = provider
+        self.model_name = name
+        if provider == "fastembed":
+            self._init_fastembed(name)
+        else:
+            self._init_sentence_transformer(name)
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        return self.model.encode(texts, show_progress_bar=False, convert_to_numpy=False).tolist()
+        return self._embed_fn(texts)
+
+    @staticmethod
+    def _parse_model_name(model_name: str) -> Tuple[str, str]:
+        if ":" in model_name:
+            provider, name = model_name.split(":", 1)
+            if provider.lower() == "fastembed" and name:
+                return "fastembed", name
+        return "sentence-transformers", model_name
+
+    @staticmethod
+    def _import_module(name: str):
+        spec = importlib.util.find_spec(name)
+        if spec is None:
+            hint = EMBED_IMPORT_HINTS.get(name, name)
+            raise RuntimeError(
+                f"The '{name}' package is required for this embedding backend. Install it with `pip install {hint}` or choose a different embed_model_name."
+            )
+        return importlib.import_module(name)
+
+    def _init_sentence_transformer(self, model_name: str) -> None:
+        module = self._import_module("sentence_transformers")
+        SentenceTransformer = getattr(module, "SentenceTransformer")
+        model = SentenceTransformer(model_name)
+
+        def _encode_cached(texts: List[str]) -> List[List[float]]:
+            return model.encode(texts, show_progress_bar=False, convert_to_numpy=False).tolist()
+
+        self.model = model
+        self._embed_fn = _encode_cached
+
+    def _init_fastembed(self, model_name: str) -> None:
+        module = self._import_module("fastembed")
+        TextEmbedding = getattr(module, "TextEmbedding")
+        model = TextEmbedding(model_name=model_name)
+
+        def _encode(texts: List[str]) -> List[List[float]]:
+            vectors = []
+            for vec in model.embed(texts):
+                if hasattr(vec, "tolist"):
+                    vectors.append(vec.tolist())
+                else:
+                    vectors.append(list(vec))
+            return vectors
+
+        self.model = model
+        self._embed_fn = _encode
 
 # --------- Vector DB ----------
 class MemoryBank:
@@ -490,7 +545,9 @@ def suggest_upgrades(cfg: Config, bank: MemoryBank) -> List[str]:
         suggestions.append(f"Docs are {count_docs} chunks. Consider increasing chunk size from {cfg.chunk_chars} to ~1600 or enabling selective folders.")
 
     if cfg.embed_model_name.lower() in {"all-minilm-l6-v2"}:
-        suggestions.append("Embedding model is all-MiniLM-L6-v2. It’s fast, but you may get better retrieval with bge-small-en or e5-small (still free).")
+        suggestions.append(
+            "Embedding model is all-MiniLM-L6-v2. It’s fast, but you may get better retrieval with bge-small-en or e5-small (still free), or switch to fastembed:BAAI/bge-small-en-v1.5 to avoid PyTorch entirely."
+        )
 
     # duplicates quick-check
     dupes = scan_dupes(cfg, bank)
