@@ -45,7 +45,17 @@
    python alter_ego_gui.py
    ```
 
-   3. **Begin interacting.** The assistant will respond with adaptive tone and whisper when it detects emotional load.
+3. **Begin interacting.** The assistant will respond with adaptive tone and whisper when it detects emotional load.
+
+### Lightweight embeddings (no PyTorch)
+
+Alter/Ego now accepts ONNX-based embeddings through [`fastembed`](https://github.com/qdrant/fastembed) for systems that cannot host PyTorch. Install the optional dependency and point the config at a supported model:
+
+```bash
+pip install fastembed
+```
+
+Then either edit `alter_ego_config.yaml` or export `ALTER_EGO_EMBED_MODEL` before launch so it reads, for example, `fastembed:BAAI/bge-small-en-v1.5`. When you use the `fastembed:` prefix, PyTorch and `sentence-transformers` are no longer required; you may safely remove them from `requirements.txt` or your environment to keep the install tiny.
 
 ### Dummy Dialogue Engine
 
