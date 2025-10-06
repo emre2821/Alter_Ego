@@ -24,6 +24,15 @@
    pip install -r requirements.txt
    ```
 
+   If you prefer the lighter [FastEmbed](https://github.com/qdrant/fastembed) runtime for embeddings, install it alongside or instead of `sentence-transformers`:
+
+   ```bash
+   pip install fastembed
+   python alter_ego_computer.py config --set-embed-model fastembed:BAAI/bge-small-en-v1.5
+   ```
+
+   When you exclusively rely on FastEmbed models you can safely remove `sentence-transformers` from `requirements.txt` (or your environment) to slim the install.
+
    If you prefer to use the project metadata directly, you can install via `pyproject.toml`:
 
    ```bash

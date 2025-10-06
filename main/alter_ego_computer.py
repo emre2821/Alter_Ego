@@ -23,6 +23,26 @@ import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 
+FASTEMBED_PREFIX = "fastembed:"
+
+try:
+    from fastembed import TextEmbedding as FastEmbedTextEmbedding
+    FASTEMBED_OK = True
+except Exception:
+    FastEmbedTextEmbedding = None  # type: ignore
+    FASTEMBED_OK = False
+
+
+def parse_embed_model_name(model_name: str) -> Tuple[str, str]:
+    raw = (model_name or "").strip()
+    lower = raw.lower()
+    if lower.startswith(FASTEMBED_PREFIX):
+        target = raw[len(FASTEMBED_PREFIX):].strip()
+        if not target:
+            raise ValueError("fastembed prefix requires a model name, e.g. fastembed:BAAI/bge-small-en-v1.5")
+        return ("fastembed", target)
+    return ("sentence-transformers", raw)
+
 # Optional imports guarded:
 try:
     from watchdog.observers import Observer
@@ -114,6 +134,9 @@ class Config(BaseModel):
     suggest_threshold_dupes: int = 3  # if ≥N dupes with same name -> suggest action
     min_near_dup_sim: float = 0.985   # cosine sim threshold for near-duplicate chunks
 
+    def parse_embed_model(self) -> Tuple[str, str]:
+        return parse_embed_model_name(self.embed_model_name)
+
 # --------- Utility ----------
 def load_config(cfg_path: Path) -> Config:
     if cfg_path.exists():
@@ -172,9 +195,22 @@ def now_iso() -> str:
 # --------- Embeddings ----------
 class Embedder:
     def __init__(self, model_name: str):
-        self.model = SentenceTransformer(model_name)
+        backend, resolved_name = parse_embed_model_name(model_name)
+        self.backend = backend
+        self.model_name = resolved_name
+
+        if backend == "fastembed":
+            if not FASTEMBED_OK:
+                raise RuntimeError(
+                    "fastembed model requested but the fastembed package is not installed."
+                )
+            self.model = FastEmbedTextEmbedding(model_name=resolved_name)  # type: ignore[call-arg]
+        else:
+            self.model = SentenceTransformer(resolved_name)
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        if self.backend == "fastembed":
+            return [vec.tolist() for vec in self.model.embed(texts)]
         return self.model.encode(texts, show_progress_bar=False, convert_to_numpy=False).tolist()
 
 # --------- Vector DB ----------
@@ -489,7 +525,8 @@ def suggest_upgrades(cfg: Config, bank: MemoryBank) -> List[str]:
     if count_docs and count_docs > 20000:
         suggestions.append(f"Docs are {count_docs} chunks. Consider increasing chunk size from {cfg.chunk_chars} to ~1600 or enabling selective folders.")
 
-    if cfg.embed_model_name.lower() in {"all-minilm-l6-v2"}:
+    _, embed_name = cfg.parse_embed_model()
+    if embed_name.lower() in {"all-minilm-l6-v2"}:
         suggestions.append("Embedding model is all-MiniLM-L6-v2. It’s fast, but you may get better retrieval with bge-small-en or e5-small (still free).")
 
     # duplicates quick-check
@@ -530,7 +567,11 @@ def banner(cfg: Config):
 def init(
     data: str = typer.Option("./data", help="Folder to ingest/watch"),
     db: str = typer.Option("./alter_ego_db", help="ChromaDB persistence dir"),
-    palette_name: str = typer.Option(DEFAULT_PALETTE, help=f"One of: {', '.join(PALETTES.keys())}")
+    palette_name: str = typer.Option(DEFAULT_PALETTE, help=f"One of: {', '.join(PALETTES.keys())}"),
+    embed_model: Optional[str] = typer.Option(
+        None,
+        help="Embedding model name. Use fastembed:MODEL to opt into fastembed.",
+    ),
 ):
     cfg_path = Path("alter_ego_config.yaml")
     cfg = load_config(cfg_path)
@@ -538,6 +579,13 @@ def init(
     cfg.db_dir = db
     if palette_name in PALETTES:
         cfg.palette = palette_name
+    if embed_model:
+        try:
+            parse_embed_model_name(embed_model)
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=1)
+        cfg.embed_model_name = embed_model
     Path(cfg.data_dir).mkdir(parents=True, exist_ok=True)
     Path(cfg.db_dir).mkdir(parents=True, exist_ok=True)
     save_config(cfg_path, cfg)
@@ -547,8 +595,20 @@ def init(
     console.print(f"DB dir        -> [cyan]{cfg.db_dir}[/cyan]")
 
 @app.command()
-def ingest(path: str = typer.Argument(..., help="File or folder to ingest")):
+def ingest(
+    path: str = typer.Argument(..., help="File or folder to ingest"),
+    embed_model: Optional[str] = typer.Option(
+        None, help="Override embedding model. Use fastembed:MODEL for fastembed."
+    ),
+):
     cfg = load_config(Path("alter_ego_config.yaml"))
+    if embed_model:
+        try:
+            parse_embed_model_name(embed_model)
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=1)
+        cfg.embed_model_name = embed_model
     banner(cfg)
     bank = MemoryBank(cfg)
     embedder = Embedder(cfg.embed_model_name)
@@ -557,8 +617,20 @@ def ingest(path: str = typer.Argument(..., help="File or folder to ingest")):
     save_state_note(bank, embedder, f"Ingested path {path} at {now_iso()}", "ingest")
 
 @app.command("watch")
-def watch_cmd(path: str = typer.Argument(None, help="Folder to watch (defaults to config data_dir)")):
+def watch_cmd(
+    path: str = typer.Argument(None, help="Folder to watch (defaults to config data_dir)"),
+    embed_model: Optional[str] = typer.Option(
+        None, help="Override embedding model. Use fastembed:MODEL for fastembed."
+    ),
+):
     cfg = load_config(Path("alter_ego_config.yaml"))
+    if embed_model:
+        try:
+            parse_embed_model_name(embed_model)
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=1)
+        cfg.embed_model_name = embed_model
     banner(cfg)
     bank = MemoryBank(cfg)
     embedder = Embedder(cfg.embed_model_name)
@@ -572,10 +644,20 @@ def ask(
     model_name: str = typer.Option(None, help="Model id or file (backend-specific)"),
     max_tokens: int = typer.Option(512),
     temperature: float = typer.Option(0.7),
+    embed_model: Optional[str] = typer.Option(
+        None, help="Override embedding model. Use fastembed:MODEL for fastembed."
+    ),
 ):
     cfg = load_config(Path("alter_ego_config.yaml"))
     if backend: cfg.llm_backend = backend
     if model_name: cfg.llm_model_name = model_name
+    if embed_model:
+        try:
+            parse_embed_model_name(embed_model)
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=1)
+        cfg.embed_model_name = embed_model
     banner(cfg)
     pal = palette(cfg)
 
@@ -686,7 +768,15 @@ def suggest():
     save_memory(bank, embedder, "Upgrade suggestions:\n" + "\n".join(f"- {x}" for x in sugg), tag="upgrade", source="auto")
 
 @app.command("config")
-def config_cmd(show: bool = typer.Option(True), set_backend: Optional[str] = None, set_model: Optional[str] = None, set_palette: Optional[str] = None):
+def config_cmd(
+    show: bool = typer.Option(True),
+    set_backend: Optional[str] = typer.Option(None, help="Set LLM backend."),
+    set_model: Optional[str] = typer.Option(None, help="Set LLM model name."),
+    set_palette: Optional[str] = typer.Option(None, help="Set CLI palette."),
+    set_embed_model: Optional[str] = typer.Option(
+        None, help="Set embedding model. Use fastembed:MODEL to opt into fastembed."
+    ),
+):
     cfg_path = Path("alter_ego_config.yaml")
     cfg = load_config(cfg_path)
     changed = False
@@ -702,6 +792,13 @@ def config_cmd(show: bool = typer.Option(True), set_backend: Optional[str] = Non
             console.print(f"[red]Invalid palette. Choose from: {', '.join(PALETTES.keys())}[/red]")
             raise typer.Exit(code=1)
         cfg.palette = set_palette; changed = True
+    if set_embed_model:
+        try:
+            parse_embed_model_name(set_embed_model)
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=1)
+        cfg.embed_model_name = set_embed_model; changed = True
     if changed:
         save_config(cfg_path, cfg)
         console.print("[green]Config updated.[/green]")
