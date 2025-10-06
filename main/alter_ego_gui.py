@@ -129,12 +129,20 @@ BUILTIN_THEMES: dict[str, dict] = {
 
 
 def load_gui_config() -> dict:
+    cfg = {"theme": "eden", "model": None, "prismari_enabled": True}
     if CONFIG_PATH.exists():
         try:
-            return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                cfg.update(loaded)
         except Exception as e:
             print(f"[config_warning] could not read {CONFIG_PATH}: {e}")
-    return {"theme": "eden", "model": None, "prismari_enabled": True}
+
+    env_theme = os.getenv("ALTER_EGO_THEME")
+    if env_theme:
+        cfg["theme"] = env_theme
+
+    return cfg
 
 
 def save_gui_config(cfg: dict) -> None:
