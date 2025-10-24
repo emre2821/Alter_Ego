@@ -45,6 +45,13 @@
    python alter_ego_gui.py
    ```
 
+   or, from the CLI steward, launch with helpful environment toggles:
+
+   ```bash
+   python alter_ego_computer.py launch --persona-root ./personas --dummy-only
+   ```
+
+3. **Begin interacting.** The assistant will respond with adaptive tone and whisper when it detects emotional load.
 3. **Begin interacting.** The assistant will respond with adaptive tone and whisper when it detects emotional load.
 
 ### Lightweight embeddings (no PyTorch)
@@ -81,6 +88,7 @@ An example screenshot is hosted externally at [this image](https://via.placehold
 
 The GUI looks for JSON theme files in `themes/` relative to `alter_ego_gui.py` (or a custom path via the `THEME_DIR` environment variable).
 If no external themes are found, Alter/Ego falls back to its built-in styles such as `eden`, `dark`, and `light`.
+You can override the palette for a single session by setting `ALTER_EGO_THEME` or passing `--theme` to `python alter_ego_computer.py launch`.
 
 ---
 

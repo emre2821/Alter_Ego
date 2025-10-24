@@ -27,4 +27,4 @@ $env:PERSONA_ROOT = "C:\EdenOS_Origin\all_daemons"
 # $env:GPT4ALL_MODEL = "DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf"
 # Optional: disable TTS by setting to 0
 # $env:ENABLE_TTS = '1'
-python alter_ego_gui.py
+python alter_ego_computer.py launch --persona-root $env:PERSONA_ROOT
