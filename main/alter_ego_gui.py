@@ -204,6 +204,13 @@ def _normalize_theme_json(name: str, data: dict) -> dict | None:
 
 
 def load_json_themes(theme_dir: Path) -> dict[str, dict]:
+    """Return theme definitions discovered under ``theme_dir``.
+
+    The GUI only activates these palettes when the directory contains
+    at least one valid JSON file. When the folder is empty or missing, the
+    caller is expected to fall back to :data:`BUILTIN_THEMES`.
+    """
+
     themes: dict[str, dict] = {}
     if not theme_dir.exists():
         return themes

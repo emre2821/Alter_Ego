@@ -79,8 +79,10 @@ An example screenshot is hosted externally at [this image](https://via.placehold
 
 ### Themes
 
-The GUI looks for JSON theme files in `themes/` relative to `alter_ego_gui.py` (or a custom path via the `THEME_DIR` environment variable).
-If no external themes are found, Alter/Ego falls back to its built-in styles such as `eden`, `dark`, and `light`.
+Alter/Ego automatically loads custom palettes from `main/themes/`, the folder that sits beside `alter_ego_gui.py`.
+Set the `THEME_DIR` environment variable if you want to point at an alternate directory.
+Each `.json` file should define keys like `bg`, `text_bg`, `text_fg`, `user_fg`, and `alter_fg` (see the bundled examples in `main/themes/`).
+If no JSON themes exist at launch, the GUI logs a notice and falls back to its built-in styles such as `eden`, `dark`, and `light`.
 
 ---
 
