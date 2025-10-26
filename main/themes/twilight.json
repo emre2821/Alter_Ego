@@ -1,0 +1,11 @@
+{
+  "bg": "#1a1027",
+  "text_bg": "#261b36",
+  "text_fg": "#f0e6ff",
+  "user_fg": "#7cc2ff",
+  "alter_fg": "#ff8ccf",
+  "entry_bg": "#2f2242",
+  "entry_fg": "#ffffff",
+  "font_family": "Fira Code",
+  "font_size": 12
+}

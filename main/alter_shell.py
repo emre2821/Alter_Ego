@@ -21,7 +21,8 @@ class AlterShell:
         self.echo_response = AlterEchoResponse()
         self.fronting = PersonaFronting()
 
-        # SQLite DB path (default 'alter_ego_memory.db'; override with MEMORY_DB env var)
+        # SQLite DB path for embeddings.
+        # Defaults to 'alter_ego_memory.db' in the current working directory; override with MEMORY_DB env var.
         self.db_path = os.getenv("MEMORY_DB", os.path.join(os.getcwd(), "alter_ego_memory.db"))
         init_db(self.db_path)
 
