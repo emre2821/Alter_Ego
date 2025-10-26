@@ -6,6 +6,8 @@ from pathlib import Path
 import os
 import logging
 
+from dummy_llm import DummyLLM
+
 os.environ.setdefault("GPT4ALL_NO_CUDA", "1")
 log = logging.getLogger("chaos_rag_wrapper")
 
@@ -70,6 +72,9 @@ def _discover_model_name(models_dir: Path) -> str:
     return ggufs[0].name
 
 # ---------- Shared model cache + selection ----------
+# Dummy engine cache (shared across calls)
+_DUMMY: Optional[DummyLLM] = None
+
 _MODEL: Optional[GPT4All] = None
 _MODEL_NAME: Optional[str] = None
 _MODEL_DIR: Optional[Path] = None
@@ -90,10 +95,30 @@ def set_model_selection(model_dir: str | None, model_name: str | None):
     _MODEL_NAME = None
 
 
+def _dummy_mode() -> str:
+    """Return configured dummy mode: 'on', 'off', or 'auto'."""
+    raw = os.getenv("ALTER_EGO_DUMMY_ONLY", "auto").strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return "on"
+    if raw in {"0", "false", "no", "off"}:
+        return "off"
+    return "auto"
+
+
+def _dummy_enabled() -> bool:
+    return _dummy_mode() != "off"
+
+
+def _llm_allowed() -> bool:
+    return _dummy_mode() in {"off", "auto"}
+
+
 def get_shared_model() -> Optional[GPT4All]:
     """Build/reuse a single GPT4All instance respecting the current selection."""
     global _MODEL, _MODEL_NAME, _MODEL_DIR
 
+    if not _llm_allowed():
+        return None
     if GPT4All is None:
         return None
     if _MODEL is not None:
@@ -109,8 +134,34 @@ def get_shared_model() -> Optional[GPT4All]:
     _MODEL.model.load_model()
     return _MODEL
 
+
+def get_dummy_engine() -> DummyLLM:
+    global _DUMMY
+    if _DUMMY is None:
+        script_path = os.getenv("ALTER_EGO_DUMMY_SCRIPT")
+        try:
+            _DUMMY = DummyLLM(script_path=script_path)
+        except Exception:  # pragma: no cover - defensive guard
+            logging.exception("Failed to build dummy engine; falling back to defaults")
+            _DUMMY = DummyLLM()
+    return _DUMMY
+
 # ---------- Public API ----------
-def generate_alter_ego_response(prompt: str, memory_used: List[str], model: Optional[GPT4All] = None) -> str:
+def generate_alter_ego_response(
+    prompt: str,
+    memory_used: List[str],
+    model: Optional[GPT4All] = None,
+    persona: Optional[str] = None,
+) -> str:
+    if _dummy_enabled():
+        try:
+            dummy = get_dummy_engine()
+            out = dummy.generate(prompt, memory_used=memory_used, persona=persona)
+            if out.strip():
+                return out.strip()
+        except Exception:
+            logging.exception("Dummy engine failure; attempting GPT4All fallback")
+
     injected = _build_injected_prompt(prompt, memory_used)
 
     engine = model or get_shared_model()

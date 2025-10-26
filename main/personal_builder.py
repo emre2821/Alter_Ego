@@ -3,7 +3,7 @@
 
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 SAVE_DIR = Path("./personas")
 SAVE_DIR.mkdir(exist_ok=True)
@@ -30,7 +30,7 @@ def build_persona():
         "keywords": [k.strip() for k in keywords if k.strip()],
         "phrases": [p.strip() for p in phrases if p.strip()],
         "overrides": overrides,
-        "created_at": datetime.utcnow().isoformat() + 'Z'
+        "created_at": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     }
 
     file_path = SAVE_DIR / f"{name}.chaos"

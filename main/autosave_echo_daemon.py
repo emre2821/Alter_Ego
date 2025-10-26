@@ -6,7 +6,7 @@ Appends CHAOS-formatted entries into a rotating echo log.
 Optionally triggers rituals or check-ins.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 
@@ -14,7 +14,7 @@ ECHO_LOG_PATH = "chaos_echo_log.chaos"
 
 
 def format_chaos_entry(prompt: str, echo_metadata: dict) -> str:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     entry = [
         f"[EVENT]: autosave_echo",
         f"[TIME]: {now}",

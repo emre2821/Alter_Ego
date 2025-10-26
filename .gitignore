@@ -4,3 +4,4 @@
 *.lock
 *.code-workspace
 *.db
+/.idea

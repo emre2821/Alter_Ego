@@ -88,6 +88,7 @@ sys.stderr = _Tee(sys.stderr, _syslog_fp)
 # Config / Themes
 # =========================
 CONFIG_PATH = APP_DIR / "gui_config.json"
+# Looks for JSON themes under main/themes or THEME_DIR override
 THEME_DIR = Path(os.getenv("THEME_DIR") or (APP_DIR / "themes"))
 
 BUILTIN_THEMES: dict[str, dict] = {
@@ -128,12 +129,20 @@ BUILTIN_THEMES: dict[str, dict] = {
 
 
 def load_gui_config() -> dict:
+    cfg = {"theme": "eden", "model": None, "prismari_enabled": True}
     if CONFIG_PATH.exists():
         try:
-            return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                cfg.update(loaded)
         except Exception as e:
             print(f"[config_warning] could not read {CONFIG_PATH}: {e}")
-    return {"theme": "eden", "model": None, "prismari_enabled": True}
+
+    env_theme = os.getenv("ALTER_EGO_THEME")
+    if env_theme:
+        cfg["theme"] = env_theme
+
+    return cfg
 
 
 def save_gui_config(cfg: dict) -> None:
@@ -293,7 +302,10 @@ class AlterEgoGUI:
 
         # Config + themes
         self.cfg = load_gui_config()
-        self.themes = load_json_themes(THEME_DIR) or BUILTIN_THEMES.copy()
+        self.themes = load_json_themes(THEME_DIR)
+        if not self.themes:
+            log.info("No JSON themes found in %s; using built-in themes", THEME_DIR)
+            self.themes = BUILTIN_THEMES.copy()
 
         # State
         self.prismari_enabled = tk.BooleanVar(value=bool(self.cfg.get("prismari_enabled", True)))
