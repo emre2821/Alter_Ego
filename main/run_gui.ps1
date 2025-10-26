@@ -36,7 +36,23 @@ if ($LASTEXITCODE -ne 0) {
 
 # Launch + tee to file
 Write-Host "[run] Launching Alter/Ego GUI..."
-uv run python .\alter_ego_gui.py *>&1 | Tee-Object -FilePath $log
+$launchArgs = @('.\alter_ego_computer.py', 'launch')
+if ($env:PERSONA_ROOT) {
+  $launchArgs += @('--persona-root', $env:PERSONA_ROOT)
+}
+if ($env:ALTER_EGO_DUMMY_ONLY -and $env:ALTER_EGO_DUMMY_ONLY.ToLower() -eq 'on') {
+  $launchArgs += '--dummy-only'
+}
+if ($env:GPT4ALL_MODEL) {
+  $launchArgs += @('--gpt4all-model', $env:GPT4ALL_MODEL)
+}
+if ($env:ALTER_EGO_THEME) {
+  $launchArgs += @('--theme', $env:ALTER_EGO_THEME)
+}
+if ($env:ENABLE_TTS) {
+  $launchArgs += @('--enable-tts', ($env:ENABLE_TTS -ne '0'))
+}
+uv run python @launchArgs *>&1 | Tee-Object -FilePath $log
 
 Write-Host ""
 Write-Host "== Alter/Ego exited =="
