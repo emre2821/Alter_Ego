@@ -5,6 +5,7 @@
 # License: MIT
 
 from __future__ import annotations
+import os, sys, time, json, hashlib, threading, queue, re, textwrap, shutil, subprocess
 import os, sys, time, json, hashlib, threading, queue, re, textwrap, shutil, importlib
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -67,6 +68,10 @@ def verify_constitution() -> None:
     if not CONSTITUTION_PATH.exists():
         raise RuntimeError("Eden constitution is missing")
 
+    constitution_text = CONSTITUTION_PATH.read_text(encoding="utf-8", errors="strict")
+    constitution_text = constitution_text.replace("\r\n", "\n").replace("\r", "\n")
+    digest = hashlib.sha256(constitution_text.encode("utf-8"))
+    digest = digest.hexdigest()
     if digest != CONSTITUTION_SHA256:
         raise RuntimeError("Eden constitution has been altered")
 
@@ -868,6 +873,43 @@ def config_cmd(
     if show:
         banner(cfg)
         console.print(yaml.safe_dump(cfg.dict(), sort_keys=False))
+
+
+@app.command("launch")
+def launch(
+    persona_root: Optional[Path] = typer.Option(None, help="Set PERSONA_ROOT before launching."),
+    dummy_only: bool = typer.Option(False, help="Force the dummy dialogue engine only."),
+    gpt4all_model: Optional[str] = typer.Option(None, help="Set GPT4ALL_MODEL to a specific .gguf file."),
+    enable_tts: Optional[bool] = typer.Option(None, help="Override ENABLE_TTS (1 for on, 0 for off)."),
+    theme: Optional[str] = typer.Option(None, help="Override GUI theme for this session."),
+):
+    """Launch the Alter/Ego GUI with helpful environment configuration."""
+
+    gui_path = Path(__file__).resolve().parent / "alter_ego_gui.py"
+    if not gui_path.exists():
+        console.print("[red]Could not locate alter_ego_gui.py next to this CLI.[/red]")
+        raise typer.Exit(code=1)
+
+    env = os.environ.copy()
+    if persona_root:
+        env["PERSONA_ROOT"] = str(persona_root)
+    if dummy_only:
+        env["ALTER_EGO_DUMMY_ONLY"] = "on"
+    if gpt4all_model:
+        env["GPT4ALL_MODEL"] = gpt4all_model
+    if enable_tts is not None:
+        env["ENABLE_TTS"] = "1" if enable_tts else "0"
+    if theme:
+        env["ALTER_EGO_THEME"] = theme
+
+    console.print("[cyan]Launching Alter/Ego GUI…[/cyan]")
+    console.print("[dim](Press Ctrl+C here to close once the window exits.)[/dim]")
+
+    try:
+        subprocess.run([sys.executable, str(gui_path)], env=env, check=True)
+    except subprocess.CalledProcessError as exc:
+        console.print(f"[red]GUI exited with error code {exc.returncode}.[/red]")
+        raise typer.Exit(code=exc.returncode)
 
 if __name__ == "__main__":
     app()

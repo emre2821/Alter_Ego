@@ -1,5 +1,3 @@
-# Alter/Ego
-
 **Alter/Ego** is a fully local, emotionally intelligent assistant tailored for systems, plurals, and neurodivergent users. It listens deeply, speaks with nuanced tone, and reflects through symbolic memory. Built to honor multiplicity and adaptive identity.
 
 ---
@@ -45,6 +43,13 @@
    python alter_ego_gui.py
    ```
 
+   or, from the CLI steward, launch with helpful environment toggles:
+
+   ```bash
+   python alter_ego_computer.py launch --persona-root ./personas --dummy-only
+   ```
+
+3. **Begin interacting.** The assistant will respond with adaptive tone and whisper when it detects emotional load.
 3. **Begin interacting.** The assistant will respond with adaptive tone and whisper when it detects emotional load.
 
 ### Lightweight embeddings (no PyTorch)
@@ -83,8 +88,33 @@ Alter/Ego automatically loads custom palettes from `main/themes/`, the folder th
 Set the `THEME_DIR` environment variable if you want to point at an alternate directory.
 Each `.json` file should define keys like `bg`, `text_bg`, `text_fg`, `user_fg`, and `alter_fg` (see the bundled examples in `main/themes/`).
 If no JSON themes exist at launch, the GUI logs a notice and falls back to its built-in styles such as `eden`, `dark`, and `light`.
+The GUI looks for JSON theme files in `themes/` relative to `alter_ego_gui.py` (or a custom path via the `THEME_DIR` environment variable).
+If no external themes are found, Alter/Ego falls back to its built-in styles such as `eden`, `dark`, and `light`.
+You can override the palette for a single session by setting `ALTER_EGO_THEME` or passing `--theme` to `python alter_ego_computer.py launch`.
 
 ---
+
+---
+
+## Model Setup
+
+### GPT4All LLMs
+- Download a `.gguf` model from [GPT4All](https://gpt4all.io) or compatible sources.
+- Place it under `./models/` or set `GPT4ALL_MODEL_DIR`/`GPT4ALL_MODELS_DIR` to a custom path.
+- The app auto-discovers the first `*.gguf` file or you can choose one in the GUI.
+
+### Embedding Models
+- Uses `sentence-transformers` models like `all-MiniLM-L6-v2`.
+- They are fetched automatically into your huggingface cache on first run.
+
+### Directory Layout
+```
+Alter_Ego/
+  main/
+    models/            # drop GPT4All .gguf files here
+    personas/          # persona configs
+    emma_memory.db     # SQLite memory database
+```
 
 ## File Structure
 
@@ -103,7 +133,7 @@ If no JSON themes exist at launch, the GUI logs a notice and falls back to its b
 ## Storage & Persistence
 
 * **Memory Files** — Saved as `.chaos` logs using symbolic syntax
-* **Memory DB** — Embedding store in `alter_ego_memory.db`; override path with `MEMORY_DB`
+* **Memory DB** — Embedding store in `alter_ego_memory.db`. Override the default location by exporting `MEMORY_DB` with a custom path.
 * **Personas** — Defined in `.json` and `.mirror` formats
 * **Echo Logs** — Captures emotional states, fronting history, tremor patterns
 
@@ -136,6 +166,31 @@ No internet or remote calls. Runs entirely on your machine for privacy, safety, 
 
 ---
 
+---
+
+## Environment Variables
+- `MEMORY_DB` – override path to the SQLite memory store. Defaults to `emma_memory.db` in the project root.
+- `THEME_DIR` – directory containing JSON theme files. Defaults to `main/themes`.
+- `PERSONA_ROOT` – optional folder scanned for `.mirror.json` or `.chaos` persona files.
+- `ENABLE_TTS` – set to `0` to disable text-to-speech.
+---
+
+## GUI Preview & CHAOS Log
+Example `.chaos` log (`example_session.chaos`):
+```chaos
+[EVENT]: autosave_echo
+[TIME]: 2025-09-03T00:19:56.523503
+[CONTEXT]: prompt_catch
+[SIGNIFICANCE]: MEDIUM
+{
+How are you today?
+}
+
+
+[EVENT]: autosave_echo
+[TIME]: 2025-09-03T00:23:01.215225
+[CONTEXT]: prompt_catch
+```
 ## Contributing
 
 See the [CONTRIBUTING](../CONTRIBUTING.md) guide for setup, coding style, and tests.
