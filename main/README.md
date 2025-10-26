@@ -1,5 +1,3 @@
-# Alter/Ego
-
 **Alter/Ego** is a fully local, emotionally intelligent assistant tailored for systems, plurals, and neurodivergent users. It listens deeply, speaks with nuanced tone, and reflects through symbolic memory. Built to honor multiplicity and adaptive identity.
 
 ---
@@ -101,7 +99,7 @@ If no external themes are found, Alter/Ego falls back to its built-in styles suc
 ## Storage & Persistence
 
 * **Memory Files** — Saved as `.chaos` logs using symbolic syntax
-* **Memory DB** — Embedding store in `alter_ego_memory.db`; override path with `MEMORY_DB`
+* **Memory DB** — Embedding store in `alter_ego_memory.db`. Override the default location by exporting `MEMORY_DB` with a custom path.
 * **Personas** — Defined in `.json` and `.mirror` formats
 * **Echo Logs** — Captures emotional states, fronting history, tremor patterns
 
