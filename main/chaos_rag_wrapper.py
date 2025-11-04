@@ -113,6 +113,30 @@ def _llm_allowed() -> bool:
     return _dummy_mode() in {"off", "auto"}
 
 
+def _gpt4all_reachable() -> bool:
+    """Best-effort detection that a GPT4All backend/model can be used."""
+
+    if not _llm_allowed():
+        return False
+
+    if _MODEL is not None:
+        return True
+
+    if GPT4All is None:
+        return False
+
+    try:
+        models_dir = _SEL_DIR or _discover_models_dir()
+        _ = _SEL_NAME or _discover_model_name(models_dir)
+    except FileNotFoundError:
+        return False
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logging.debug("GPT4All discovery failed: %s", exc)
+        return False
+
+    return True
+
+
 def get_shared_model() -> Optional[GPT4All]:
     """Build/reuse a single GPT4All instance respecting the current selection."""
     global _MODEL, _MODEL_NAME, _MODEL_DIR
@@ -153,7 +177,10 @@ def generate_alter_ego_response(
     model: Optional[GPT4All] = None,
     persona: Optional[str] = None,
 ) -> str:
-    if _dummy_enabled():
+    mode = _dummy_mode()
+    dummy_allowed = mode == "on" or (mode == "auto" and _gpt4all_reachable())
+
+    if dummy_allowed:
         try:
             dummy = get_dummy_engine()
             out = dummy.generate(prompt, memory_used=memory_used, persona=persona)
