@@ -3,6 +3,7 @@
 # Warm-starts GPT4All in a background thread so the GUI never blocks.
 
 from __future__ import annotations
+import inspect
 import os
 import logging
 import threading
@@ -30,6 +31,7 @@ class AlterShell:
         self._model = None
         self._model_ready = threading.Event()
         threading.Thread(target=self._warm_start, daemon=True).start()
+        self._supports_persona_kw = None
 
     def _warm_start(self):
         try:
@@ -61,12 +63,42 @@ class AlterShell:
 
         # 3) generate LLM output with our preloaded instance
         persona = self.fronting.get_active() or "Rhea"
-        llm_output = generate_alter_ego_response(
-            user_input,
-            memory_used=mems,
-            model=self._model,
-            persona=persona,
-        )
+
+        if self._supports_persona_kw is None:
+            try:
+                sig = inspect.signature(generate_alter_ego_response)
+            except (TypeError, ValueError):
+                # built-in or otherwise uninspectable object — optimistically assume persona is ok
+                self._supports_persona_kw = True
+            else:
+                params = sig.parameters.values()
+                has_kwargs = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params)
+                self._supports_persona_kw = has_kwargs or ("persona" in sig.parameters)
+
+        call_kwargs = {
+            "memory_used": mems,
+            "model": self._model,
+        }
+
+        if self._supports_persona_kw:
+            call_kwargs["persona"] = persona
+
+        try:
+            llm_output = generate_alter_ego_response(
+                user_input,
+                **call_kwargs,
+            )
+        except TypeError as exc:
+            if "persona" in call_kwargs and "persona" in str(exc):
+                logging.info("generate_alter_ego_response rejected persona kwarg; retrying without it")
+                call_kwargs.pop("persona", None)
+                self._supports_persona_kw = False
+                llm_output = generate_alter_ego_response(
+                    user_input,
+                    **call_kwargs,
+                )
+            else:
+                raise
 
         # 4) post-process echo
         response, echo = self.echo_response.respond(user_input, llm_output)
