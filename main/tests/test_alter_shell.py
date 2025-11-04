@@ -30,3 +30,34 @@ def test_interact_handles_memory_failure(monkeypatch):
 
     out = shell.interact("test")
     assert out == "final"
+
+
+def test_interact_falls_back_when_persona_not_supported(monkeypatch):
+    monkeypatch.setattr(alter_shell.AlterShell, "_warm_start", lambda self: None)
+    shell = alter_shell.AlterShell()
+    shell._model_ready.set()
+
+    monkeypatch.setattr(alter_shell, "search", lambda *a, **k: [])
+    monkeypatch.setattr(alter_shell, "mem_add", lambda *a, **k: None)
+    monkeypatch.setattr(alter_shell, "autosave_prompt", lambda *a, **k: None)
+
+    captured = {}
+
+    def stub_generate(prompt, memory_used, model):
+        captured["called"] = True
+        captured["memory_used"] = memory_used
+        captured["model"] = model
+        return "llm"
+
+    monkeypatch.setattr(alter_shell, "generate_alter_ego_response", stub_generate)
+
+    class DummyEcho:
+        def respond(self, user_input, llm_output):
+            return "final", {}
+
+    shell.echo_response = DummyEcho()
+
+    out = shell.interact("hello")
+
+    assert out == "final"
+    assert captured.get("called") is True
