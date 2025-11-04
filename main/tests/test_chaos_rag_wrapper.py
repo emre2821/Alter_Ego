@@ -13,3 +13,13 @@ def test_generate_response_without_model(monkeypatch):
     monkeypatch.setattr(crw, "get_shared_model", lambda: None)
     out = crw.generate_alter_ego_response("hi", [])
     assert "Hmm..." in out
+
+
+def test_auto_mode_skips_dummy_when_no_gpt4all(monkeypatch):
+    monkeypatch.setenv("ALTER_EGO_DUMMY_ONLY", "auto")
+    monkeypatch.setattr(crw, "GPT4All", None)
+    monkeypatch.setattr(crw, "get_shared_model", lambda: None)
+    monkeypatch.setattr(crw, "get_dummy_engine", lambda: pytest.fail("dummy should not run"))
+
+    out = crw.generate_alter_ego_response("hello", [])
+    assert "Hmm..." in out
