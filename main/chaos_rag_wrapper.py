@@ -178,7 +178,13 @@ def generate_alter_ego_response(
     persona: Optional[str] = None,
 ) -> str:
     mode = _dummy_mode()
-    dummy_allowed = mode == "on" or (mode == "auto" and _gpt4all_reachable())
+    gpt4all_available = model is not None or _gpt4all_reachable()
+    dummy_allowed = mode == "on" or (mode == "auto" and gpt4all_available)
+
+    if mode == "auto" and not gpt4all_available:
+        logging.debug(
+            "Auto mode fallback: no GPT4All backend/model reachable; skipping dummy engine"
+        )
 
     if dummy_allowed:
         try:
