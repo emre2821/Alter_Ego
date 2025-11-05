@@ -32,7 +32,7 @@ def test_interact_handles_memory_failure(monkeypatch):
     assert out == "final"
 
 
-def test_interact_falls_back_when_persona_not_supported(monkeypatch):
+def test_interact_skips_persona_for_stub_without_kwarg(monkeypatch):
     monkeypatch.setattr(alter_shell.AlterShell, "_warm_start", lambda self: None)
     shell = alter_shell.AlterShell()
     shell._model_ready.set()
@@ -61,3 +61,37 @@ def test_interact_falls_back_when_persona_not_supported(monkeypatch):
 
     assert out == "final"
     assert captured.get("called") is True
+    assert shell._supports_persona_kw is False
+
+
+def test_interact_retries_when_persona_kw_is_rejected(monkeypatch):
+    monkeypatch.setattr(alter_shell.AlterShell, "_warm_start", lambda self: None)
+    shell = alter_shell.AlterShell()
+    shell._model_ready.set()
+
+    monkeypatch.setattr(alter_shell, "search", lambda *a, **k: [])
+    monkeypatch.setattr(alter_shell, "mem_add", lambda *a, **k: None)
+    monkeypatch.setattr(alter_shell, "autosave_prompt", lambda *a, **k: None)
+
+    calls = []
+
+    def stub_generate(prompt, memory_used, model, **kwargs):
+        calls.append(kwargs)
+        if "persona" in kwargs:
+            raise TypeError("persona not supported here")
+        return "llm"
+
+    monkeypatch.setattr(alter_shell, "generate_alter_ego_response", stub_generate)
+
+    class DummyEcho:
+        def respond(self, user_input, llm_output):
+            return "final", {}
+
+    shell.echo_response = DummyEcho()
+
+    out = shell.interact("retry")
+
+    assert out == "final"
+    assert calls[0] == {"persona": shell.fronting.get_active() or "Rhea"}
+    assert calls[1] == {}
+    assert shell._supports_persona_kw is False
