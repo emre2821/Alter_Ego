@@ -89,14 +89,18 @@ class AlterShell:
                 **call_kwargs,
             )
         except TypeError as exc:
-            if "persona" in call_kwargs and "persona" in str(exc):
+            if "persona" in call_kwargs:
                 logging.info("generate_alter_ego_response rejected persona kwarg; retrying without it")
                 call_kwargs.pop("persona", None)
                 self._supports_persona_kw = False
-                llm_output = generate_alter_ego_response(
-                    user_input,
-                    **call_kwargs,
-                )
+                try:
+                    llm_output = generate_alter_ego_response(
+                        user_input,
+                        **call_kwargs,
+                    )
+                except TypeError:
+                    # Restore caller visibility of the original failure — this wasn't about persona.
+                    raise exc
             else:
                 raise
 
