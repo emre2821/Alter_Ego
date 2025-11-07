@@ -80,6 +80,279 @@ sys.stdout = _Tee(sys.stdout, _syslog_fp)
 sys.stderr = _Tee(sys.stderr, _syslog_fp)
 
 # =========================
+# Config / Themes
+# =========================
+CONFIG_DIR = APP_DIR
+CONFIG_PATH = CONFIG_DIR / "gui_config.json"
+LEGACY_CONFIG_PATHS = [
+    APP_DIR / "config" / "gui_config.json",
+    APP_DIR.parent / "gui_config.json",
+    APP_DIR.parent / "config" / "gui_config.json",
+]
+LEGACY_THEME_DIRS = [APP_DIR.parent / "themes"]
+
+
+def _resolve_theme_dir() -> Path:
+    if env_dir := os.getenv("THEME_DIR"):
+        env_path = Path(env_dir)
+        if env_path.exists() and env_path.is_dir():
+            return env_path
+
+    candidate = APP_DIR / "themes"
+    if candidate.exists():
+        return candidate
+
+    for legacy in LEGACY_THEME_DIRS:
+        if legacy.exists():
+            log.warning(
+                "Using legacy theme directory at %s; move themes to %s or set THEME_DIR.",
+                legacy,
+                candidate,
+            )
+            return legacy
+
+    return candidate
+
+
+def _migrate_legacy_config() -> None:
+    if CONFIG_PATH.exists():
+        return
+
+    for legacy_path in LEGACY_CONFIG_PATHS:
+        if not legacy_path.exists():
+            continue
+        try:
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            CONFIG_PATH.write_text(legacy_path.read_text(encoding="utf-8"), encoding="utf-8")
+            log.info("Migrated legacy GUI config from %s to %s", legacy_path, CONFIG_PATH)
+            return
+        except Exception as exc:
+            log.warning("Failed to migrate GUI config from %s: %s", legacy_path, exc)
+
+
+# Looks for JSON themes under main/themes or THEME_DIR override
+THEME_DIR = _resolve_theme_dir()
+
+BUILTIN_THEMES: dict[str, dict] = {
+    "dark": {
+        "bg": "#1f1f2e",
+        "text_bg": "#2e2e3f",
+        "text_fg": "#dcdcdc",
+        "user_fg": "#85d6ff",
+        "alter_fg": "#f5b6ff",
+        "entry_bg": "#3c3c50",
+        "entry_fg": "#ffffff",
+        "font_family": "Consolas",
+        "font_size": 11,
+    },
+    "eden": {
+        "bg": "#101820",
+        "text_bg": "#0f2740",
+        "text_fg": "#e0f7fa",
+        "user_fg": "#29b6f6",
+        "alter_fg": "#ff80ab",
+        "entry_bg": "#1c2b36",
+        "entry_fg": "#ffffff",
+        "font_family": "Corbel",
+        "font_size": 18,
+    },
+    "light": {
+        "bg": "#fafafa",
+        "text_bg": "#ffffff",
+        "text_fg": "#222222",
+        "user_fg": "#0044cc",
+        "alter_fg": "#880088",
+        "entry_bg": "#f0f0f0",
+        "entry_fg": "#000000",
+        "font_family": "Segoe UI",
+        "font_size": 12,
+    },
+}
+
+
+def load_gui_config() -> dict:
+    _migrate_legacy_config()
+    cfg = {"theme": "eden", "model": None, "prismari_enabled": True}
+    if CONFIG_PATH.exists():
+        try:
+            if isinstance(loaded := json.loads(CONFIG_PATH.read_text(encoding="utf-8")), dict):
+                cfg |= loaded
+        except Exception as exc:
+            log.warning("Could not read %s: %s", CONFIG_PATH, exc)
+
+    if env_theme := os.getenv("ALTER_EGO_THEME"):
+        cfg["theme"] = env_theme
+
+    return cfg
+
+
+def save_gui_config(cfg: dict) -> None:
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    except Exception as exc:
+        log.warning("Could not write %s: %s", CONFIG_PATH, exc)
+
+
+def _coerce_theme_from_tokens(name: str, tokens: dict) -> dict:
+    def tok(k, default):
+        return tokens.get(k, default)
+
+    bg = tok("background", "#1f1f2e")
+    text_bg = tok("panel", tok("background-2", "#2e2e3f"))
+    text_fg = tok("foreground", "#dcdcdc")
+    entry_bg = tok("input-bg", "#3c3c50")
+    entry_fg = tok("input-fg", "#ffffff")
+    user_fg = tok("accent", "#85d6ff")
+    alter_fg = tok("highlight", "#f5b6ff")
+    font_family = tokens.get("font_family", "Consolas")
+    try:
+        font_size = int(tokens.get("font_size", 11))
+    except Exception:
+        font_size = 11
+
+    return {
+        "bg": bg,
+        "text_bg": text_bg,
+        "text_fg": text_fg,
+        "user_fg": user_fg,
+        "alter_fg": alter_fg,
+        "entry_bg": entry_bg,
+        "entry_fg": entry_fg,
+        "font_family": font_family,
+        "font_size": font_size,
+        "_source": f"tokens:{name}",
+    }
+
+
+def _select_palette_from_collection(data: dict) -> dict | None:
+    palettes = data.get("eden_themes")
+    if not isinstance(palettes, list) or not palettes:
+        return None
+
+    if default_name := data.get("default_palette"):
+        for palette in palettes:
+            if palette.get("name") == default_name:
+                return palette
+
+    return palettes[0]
+
+
+def _extract_tokens_payload(name: str, data: dict) -> tuple[str, dict] | None:
+    tokens = data.get("tokens")
+    if isinstance(tokens, dict):
+        return data.get("name", name), tokens
+    return None
+
+
+def _build_direct_theme(name: str, data: dict) -> dict | None:
+    keys = {"bg", "text_bg", "text_fg", "user_fg", "alter_fg", "entry_bg", "entry_fg"}
+    if all(k not in data for k in keys):
+        return None
+
+    merged = BUILTIN_THEMES["dark"].copy()
+    merged.update(data)
+    merged.setdefault("font_family", "Consolas")
+    merged.setdefault("font_size", 11)
+    merged["_source"] = f"direct:{name}"
+    return merged
+
+
+def _normalize_theme_json(name: str, data: dict) -> dict | None:
+    if palette := _select_palette_from_collection(data):
+        return _coerce_theme_from_tokens(palette.get("name", name), palette.get("tokens", {}))
+
+    if tokens_payload := _extract_tokens_payload(name, data):
+        payload_name, tokens = tokens_payload
+        return _coerce_theme_from_tokens(payload_name, tokens)
+
+    return _build_direct_theme(name, data)
+
+
+def load_json_themes(theme_dir: Path) -> dict[str, dict]:
+    """Return theme definitions discovered under ``theme_dir``.
+
+    The GUI only activates these palettes when the directory contains
+    at least one valid JSON file. When the folder is empty or missing, the
+    caller is expected to fall back to :data:`BUILTIN_THEMES`.
+    """
+
+    themes: dict[str, dict] = {}
+    if not theme_dir.exists():
+        return themes
+    for p in sorted(theme_dir.glob("*.json")):
+        try:
+            if norm := _normalize_theme_json(p.stem, json.loads(p.read_text(encoding="utf-8"))):
+                themes[p.stem] = norm
+        except Exception as exc:
+            log.error("Failed to load theme file '%s': %s", p, exc)
+    return themes
+
+# =========================
+# Model folder utilities
+# =========================
+def _default_models_dir() -> Path:
+    for env in ("GPT4ALL_MODEL_DIR", "GPT4ALL_MODELS_DIR"):
+        d = os.getenv(env)
+        if d and Path(d).exists():
+            return Path(d)
+    lad = os.getenv("LOCALAPPDATA")
+    if lad:
+        p = Path(lad) / "nomic.ai" / "GPT4All"
+        if p.exists():
+            return p
+    p = Path.home() / "AppData" / "Local" / "nomic.ai" / "GPT4All"
+    if p.exists():
+        return p
+    fallback = APP_DIR / "models"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+def _list_models(models_dir: Path) -> list[str]:
+    try:
+        return sorted([p.name for p in models_dir.glob("*.gguf")])
+    except Exception:
+        log.exception("Failed to list models in directory: %s", models_dir)
+        return []
+
+# =========================
+# TTS engine (threaded)
+# =========================
+ENABLE_TTS = os.getenv("ENABLE_TTS", "1") != "0"
+_tts_q: queue.Queue[str] | None = None
+_tts_thread: threading.Thread | None = None
+
+
+def _start_tts_loop():
+    global _tts_q, _tts_thread
+    if not (ENABLE_TTS and pyttsx3 is not None):
+        return
+    _tts_q = queue.Queue()
+
+    def _loop():
+        try:
+            eng = pyttsx3.init()
+            eng.setProperty("rate", 165)
+            eng.setProperty("volume", 0.9)
+            while True:
+                msg = _tts_q.get()
+                if msg is None:  # sentinel for shutdown
+                    break
+                eng.say(msg)
+                eng.runAndWait()
+        except Exception as e:
+            log.warning(f"[tts_warning] {e}")
+
+    _tts_thread = threading.Thread(target=_loop, daemon=True)
+    _tts_thread.start()
+
+
+def _speak(text: str):
+    if _tts_q is not None:
+        _tts_q.put(text)
+
+# =========================
 # GUI
 # =========================
 class AlterEgoGUI:
@@ -140,6 +413,7 @@ class AlterEgoGUI:
 
         # If no model selected, prompt kindly
         if not self.current_model:
+            self.display_text("[notice] No model selected. Open Models → pick a .gguf to load.\n\n", "alter")
             guide = (
                 "[welcome] No voice selected yet. Open Models → pick a .gguf file once you've downloaded one.\n"
                 "Starter suggestion: DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf (see README).\n"
@@ -158,6 +432,7 @@ class AlterEgoGUI:
         if not self._models_list:
             self.display_text(
                 (
+                    "[guide] No .gguf files detected yet. Use the README link to download a model "
                     "[guide] No .gguf files detected yet. Use the link in README to download a model "
                     "and place it inside the models directory.\n\n"
                 ),
