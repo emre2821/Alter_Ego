@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any, Dict
 
 
@@ -42,6 +43,12 @@ def load_gui_config() -> Dict[str, Any]:
         else:
             if isinstance(loaded, dict):
                 prefs |= loaded
+            else:
+                log.warning(
+                    "[config_warning] expected dict in %s but got %s",
+                    CONFIG_PATH,
+                    type(loaded).__name__,
+                )
                 prefs.update(loaded)
 
     if env_theme := os.getenv("ALTER_EGO_THEME"):
@@ -51,9 +58,30 @@ def load_gui_config() -> Dict[str, Any]:
 
 
 def save_gui_config(prefs: Dict[str, Any]) -> None:
-    """Persist GUI configuration to disk."""
+    """Persist GUI configuration to disk atomically."""
 
     try:
+        data = json.dumps(prefs, indent=2)
+    except TypeError as exc:
+        log.warning("[config_warning] could not serialize prefs: %s", exc)
+        return
+
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    temp_path = None
+    try:
+        with NamedTemporaryFile(
+            "w", encoding="utf-8", dir=CONFIG_PATH.parent, delete=False
+        ) as tmp_file:
+            temp_path = Path(tmp_file.name)
+            tmp_file.write(data)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+        temp_path.replace(CONFIG_PATH)
+    except OSError as exc:
+        log.warning("[config_warning] could not write %s: %s", CONFIG_PATH, exc)
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
         serialized_prefs = json.dumps(prefs, indent=2)
     except (TypeError, ValueError) as exc:
         log.warning("[config_warning] could not serialize prefs: %s", exc)
