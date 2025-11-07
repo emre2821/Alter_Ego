@@ -247,7 +247,7 @@ def _extract_tokens_payload(name: str, data: dict) -> tuple[str, dict] | None:
 
 def _build_direct_theme(name: str, data: dict) -> dict | None:
     keys = {"bg", "text_bg", "text_fg", "user_fg", "alter_fg", "entry_bg", "entry_fg"}
-    if not any(k in data for k in keys):
+    if all(k not in data for k in keys):
         return None
 
     merged = BUILTIN_THEMES["dark"].copy()
