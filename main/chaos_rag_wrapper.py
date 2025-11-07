@@ -7,6 +7,7 @@ import os
 import logging
 
 from dummy_llm import DummyLLM
+from configuration import get_models_dir
 
 os.environ.setdefault("GPT4ALL_NO_CUDA", "1")
 log = logging.getLogger("chaos_rag_wrapper")
@@ -37,25 +38,9 @@ def _build_injected_prompt(prompt: str, memory_used: List[str]) -> str:
 
 # ---------- Model discovery ----------
 def _discover_models_dir() -> Path:
-    # Accept both singular/plural env names; then typical GPT4All folder; then ./models
-    for env in ("GPT4ALL_MODEL_DIR", "GPT4ALL_MODELS_DIR"):
-        d = os.getenv(env)
-        if d and Path(d).exists():
-            return Path(d)
-
-    lad = os.getenv("LOCALAPPDATA")
-    if lad:
-        p = Path(lad) / "nomic.ai" / "GPT4All"
-        if p.exists():
-            return p
-
-    p = Path.home() / "AppData" / "Local" / "nomic.ai" / "GPT4All"
-    if p.exists():
-        return p
-
-    fallback = APP_DIR / "models"
-    fallback.mkdir(parents=True, exist_ok=True)
-    return fallback
+    path = get_models_dir()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _discover_model_name(models_dir: Path) -> str:
