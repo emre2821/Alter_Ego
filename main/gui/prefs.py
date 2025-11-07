@@ -32,7 +32,7 @@ def load_gui_config() -> Dict[str, Any]:
             log.warning("[config_warning] could not read %s: %s", CONFIG_PATH, exc)
         else:
             if isinstance(loaded, dict):
-                prefs.update(loaded)
+                prefs |= loaded
 
     if env_theme := os.getenv("ALTER_EGO_THEME"):
         prefs["theme"] = env_theme
