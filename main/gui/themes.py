@@ -106,6 +106,8 @@ def _normalize_theme_json(name: str, data: dict) -> dict | None:
     return None
 
 
+import logging
+
 def load_json_themes(theme_dir: Path) -> Dict[str, Dict]:
     themes: Dict[str, Dict] = {}
     if not theme_dir.exists():
@@ -116,7 +118,8 @@ def load_json_themes(theme_dir: Path) -> Dict[str, Dict]:
             norm = _normalize_theme_json(p.stem, data)
             if norm:
                 themes[p.stem] = norm
-        except Exception:
+        except Exception as e:
+            logging.error(f"Failed to load theme file '{p}': {e}")
             continue
     return themes
 
