@@ -25,8 +25,7 @@ def list_models(models_dir: Path) -> List[str]:
 def current_selection(models_dir: Path) -> Tuple[Path, Optional[str]]:
     """Return the (dir, filename) pair that should be pre-selected."""
 
-    model_name = get_model_name()
-    if model_name:
+    if model_name := get_model_name():
         candidate = models_dir / model_name
         if candidate.exists():
             return models_dir, model_name
