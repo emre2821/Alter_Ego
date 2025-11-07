@@ -33,7 +33,7 @@ def load_gui_config() -> Dict[str, Any]:
             log.warning("[config_warning] could not read %s: %s", CONFIG_PATH, exc)
         else:
             if isinstance(loaded, dict):
-                prefs.update(loaded)
+                prefs |= loaded
             else:
                 log.warning(
                     "[config_warning] expected dict in %s but got %s",
