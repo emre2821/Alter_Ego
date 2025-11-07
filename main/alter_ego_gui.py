@@ -205,7 +205,7 @@ class AlterEgoGUI:
         theme = self.themes.get(theme_name)
         if not theme:
             messagebox.showwarning("Theme not found", f"Theme '{theme_name}' not found. Falling back to 'eden'.")
-            theme = BUILIN_THEMES["eden"]
+            theme = BUILTIN_THEMES["eden"]
             theme_name = "eden"
 
         self.current_theme_name = theme_name
