@@ -4,26 +4,16 @@
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import datetime
 import logging
 from pathlib import Path
-import queue
-import threading
-import time
 import tkinter as tk
 from tkinter import scrolledtext, messagebox, filedialog
 
 # Keep GPT4All quiet about CUDA unless you explicitly want GPU later.
 os.environ.setdefault("GPT4ALL_NO_CUDA", "1")
-
-# Optional TTS (available if pyttsx3 exists)
-try:
-    import pyttsx3  # type: ignore
-except Exception:
-    pyttsx3 = None  # noqa: N816
 
 # Optional Prismari (palette muse)
 try:
@@ -34,6 +24,11 @@ except Exception:
 # Eden runtime imports
 from alter_shell import AlterShell
 from persona_fronting import PersonaFronting
+from configuration import get_persona_root
+from gui.models import default_models_dir, list_models
+from gui.prefs import load_gui_config, save_gui_config
+from gui.themes import BUILTIN_THEMES, THEME_DIR, load_json_themes
+from gui.tts import speak as tts_speak, start_tts_loop, shutdown_tts
 
 # =========================
 # Logging + tee setup
@@ -85,217 +80,6 @@ sys.stdout = _Tee(sys.stdout, _syslog_fp)
 sys.stderr = _Tee(sys.stderr, _syslog_fp)
 
 # =========================
-# Config / Themes
-# =========================
-CONFIG_PATH = APP_DIR / "gui_config.json"
-# Looks for JSON themes under main/themes or THEME_DIR override
-THEME_DIR = Path(os.getenv("THEME_DIR") or (APP_DIR / "themes"))
-
-BUILTIN_THEMES: dict[str, dict] = {
-    "dark": {
-        "bg": "#1f1f2e",
-        "text_bg": "#2e2e3f",
-        "text_fg": "#dcdcdc",
-        "user_fg": "#85d6ff",
-        "alter_fg": "#f5b6ff",
-        "entry_bg": "#3c3c50",
-        "entry_fg": "#ffffff",
-        "font_family": "Consolas",
-        "font_size": 11,
-    },
-    "eden": {
-        "bg": "#101820",
-        "text_bg": "#0f2740",
-        "text_fg": "#e0f7fa",
-        "user_fg": "#29b6f6",
-        "alter_fg": "#ff80ab",
-        "entry_bg": "#1c2b36",
-        "entry_fg": "#ffffff",
-        "font_family": "Corbel",
-        "font_size": 18,
-    },
-    "light": {
-        "bg": "#fafafa",
-        "text_bg": "#ffffff",
-        "text_fg": "#222222",
-        "user_fg": "#0044cc",
-        "alter_fg": "#880088",
-        "entry_bg": "#f0f0f0",
-        "entry_fg": "#000000",
-        "font_family": "Segoe UI",
-        "font_size": 12,
-    },
-}
-
-
-def load_gui_config() -> dict:
-    cfg = {"theme": "eden", "model": None, "prismari_enabled": True}
-    if CONFIG_PATH.exists():
-        try:
-            loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                cfg.update(loaded)
-        except Exception as e:
-            print(f"[config_warning] could not read {CONFIG_PATH}: {e}")
-
-    env_theme = os.getenv("ALTER_EGO_THEME")
-    if env_theme:
-        cfg["theme"] = env_theme
-
-    return cfg
-
-
-def save_gui_config(cfg: dict) -> None:
-    try:
-        CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    except Exception as e:
-        print(f"[config_warning] could not write {CONFIG_PATH}: {e}")
-
-
-def _coerce_theme_from_tokens(name: str, tokens: dict) -> dict:
-    def tok(k, default):
-        return tokens.get(k, default)
-
-    bg = tok("background", "#1f1f2e")
-    text_bg = tok("panel", tok("background-2", "#2e2e3f"))
-    text_fg = tok("foreground", "#dcdcdc")
-    entry_bg = tok("input-bg", "#3c3c50")
-    entry_fg = tok("input-fg", "#ffffff")
-    user_fg = tok("accent", "#85d6ff")
-    alter_fg = tok("highlight", "#f5b6ff")
-    font_family = tokens.get("font_family", "Consolas")
-    try:
-        font_size = int(tokens.get("font_size", 11))
-    except Exception:
-        font_size = 11
-
-    return {
-        "bg": bg,
-        "text_bg": text_bg,
-        "text_fg": text_fg,
-        "user_fg": user_fg,
-        "alter_fg": alter_fg,
-        "entry_bg": entry_bg,
-        "entry_fg": entry_fg,
-        "font_family": font_family,
-        "font_size": font_size,
-        "_source": f"tokens:{name}",
-    }
-
-
-def _normalize_theme_json(name: str, data: dict) -> dict | None:
-    if "eden_themes" in data and isinstance(data["eden_themes"], list) and data["eden_themes"]:
-        default_name = data.get("default_palette")
-        chosen = None
-        if default_name:
-            for t in data["eden_themes"]:
-                if t.get("name") == default_name:
-                    chosen = t
-                    break
-        if not chosen:
-            chosen = data["eden_themes"][0]
-        return _coerce_theme_from_tokens(chosen.get("name", name), chosen.get("tokens", {}))
-
-    if "tokens" in data and isinstance(data["tokens"], dict):
-        return _coerce_theme_from_tokens(data.get("name", name), data["tokens"])
-
-    keys = {"bg", "text_bg", "text_fg", "user_fg", "alter_fg", "entry_bg", "entry_fg"}
-    if any(k in data for k in keys):
-        merged = BUILTIN_THEMES["dark"].copy()
-        merged.update(data)
-        merged.setdefault("font_family", "Consolas")
-        merged.setdefault("font_size", 11)
-        merged["_source"] = f"direct:{name}"
-        return merged
-
-    return None
-
-
-def load_json_themes(theme_dir: Path) -> dict[str, dict]:
-    """Return theme definitions discovered under ``theme_dir``.
-
-    The GUI only activates these palettes when the directory contains
-    at least one valid JSON file. When the folder is empty or missing, the
-    caller is expected to fall back to :data:`BUILTIN_THEMES`.
-    """
-
-    themes: dict[str, dict] = {}
-    if not theme_dir.exists():
-        return themes
-    for p in sorted(theme_dir.glob("*.json")):
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-            norm = _normalize_theme_json(p.stem, data)
-            if norm:
-                themes[p.stem] = norm
-        except Exception as e:
-            print(f"[theme_warning] Could not load {p.name}: {e}")
-    return themes
-
-# =========================
-# Model folder utilities
-# =========================
-def _default_models_dir() -> Path:
-    for env in ("GPT4ALL_MODEL_DIR", "GPT4ALL_MODELS_DIR"):
-        d = os.getenv(env)
-        if d and Path(d).exists():
-            return Path(d)
-    lad = os.getenv("LOCALAPPDATA")
-    if lad:
-        p = Path(lad) / "nomic.ai" / "GPT4All"
-        if p.exists():
-            return p
-    p = Path.home() / "AppData" / "Local" / "nomic.ai" / "GPT4All"
-    if p.exists():
-        return p
-    fallback = APP_DIR / "models"
-    fallback.mkdir(parents=True, exist_ok=True)
-    return fallback
-
-
-def _list_models(models_dir: Path) -> list[str]:
-    try:
-        return sorted([p.name for p in models_dir.glob("*.gguf")])
-    except Exception:
-        return []
-
-# =========================
-# TTS engine (threaded)
-# =========================
-ENABLE_TTS = os.getenv("ENABLE_TTS", "1") != "0"
-_tts_q: queue.Queue[str] | None = None
-_tts_thread: threading.Thread | None = None
-
-
-def _start_tts_loop():
-    global _tts_q, _tts_thread
-    if not (ENABLE_TTS and pyttsx3 is not None):
-        return
-    _tts_q = queue.Queue()
-
-    def _loop():
-        try:
-            eng = pyttsx3.init()
-            eng.setProperty("rate", 165)
-            eng.setProperty("volume", 0.9)
-            while True:
-                msg = _tts_q.get()
-                if msg is None:  # sentinel for shutdown
-                    break
-                eng.say(msg)
-                eng.runAndWait()
-        except Exception as e:
-            log.warning(f"[tts_warning] {e}")
-
-    _tts_thread = threading.Thread(target=_loop, daemon=True)
-    _tts_thread.start()
-
-
-def _speak(text: str):
-    if _tts_q is not None:
-        _tts_q.put(text)
-
-# =========================
 # GUI
 # =========================
 class AlterEgoGUI:
@@ -321,8 +105,8 @@ class AlterEgoGUI:
         self.current_model = self.cfg.get("model")  # may be None
 
         # Models folder + live list
-        self.models_dir = _default_models_dir()
-        self._models_list: list[str] = _list_models(self.models_dir)
+        self.models_dir = default_models_dir()
+        self._models_list: list[str] = list_models(self.models_dir)
 
         # Widgets
         self.text_area: scrolledtext.ScrolledText | None = None
@@ -334,14 +118,18 @@ class AlterEgoGUI:
 
         # Persona availability banner
         try:
-            persona_root = os.getenv("PERSONA_ROOT") or r"C:\EdenOS_Origin\all_daemons"
-            pr = Path(persona_root)
+            persona_root = Path(get_persona_root())
+            pr = persona_root
             count = 0
             if pr.exists():
                 count = sum(1 for _ in pr.rglob("*.mirror.json")) + sum(1 for _ in pr.rglob("*.chaos"))
             if count == 0:
                 self.display_text(
-                    f"[notice] No personas found under '{persona_root}'. Set PERSONA_ROOT or add files.\n\n",
+                    (
+                        "[notice] No personas found under "
+                        f"'{persona_root}'. Add persona files to that folder or set PERSONA_ROOT.\n"
+                        "See README → Personas for starter options.\n\n"
+                    ),
                     "alter",
                 )
         except Exception as e:
@@ -352,7 +140,29 @@ class AlterEgoGUI:
 
         # If no model selected, prompt kindly
         if not self.current_model:
-            self.display_text("[notice] No model selected. Open Models → pick a .gguf to load.\n\n", "alter")
+            guide = (
+                "[welcome] No voice selected yet. Open Models → pick a .gguf file once you've downloaded one.\n"
+                "Starter suggestion: DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf (see README).\n"
+                f"Drop it into {self.models_dir} or choose another folder from the Models menu.\n\n"
+            )
+            self.display_text(guide, "alter")
+        elif self.current_model and self.current_model not in self._models_list:
+            self.display_text(
+                (
+                    "[notice] Previously selected model is missing. "
+                    "Check the Models folder or pick a new file.\n\n"
+                ),
+                "alter",
+            )
+
+        if not self._models_list:
+            self.display_text(
+                (
+                    "[guide] No .gguf files detected yet. Use the link in README to download a model "
+                    "and place it inside the models directory.\n\n"
+                ),
+                "alter",
+            )
 
         # Clean shutdown
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -490,12 +300,12 @@ class AlterEgoGUI:
             return
         self.models_dir = Path(chosen)
         os.environ["GPT4ALL_MODEL_DIR"] = str(self.models_dir)
-        self._models_list = _list_models(self.models_dir)
+        self._models_list = list_models(self.models_dir)
         self._rebuild_model_menu()
         self.display_text(f"[notice] Models folder set to: {self.models_dir}\n\n", "alter")
 
     def _poll_models(self):
-        current = _list_models(self.models_dir)
+        current = list_models(self.models_dir)
         if current != self._models_list:
             self._models_list = current
             self._rebuild_model_menu()
@@ -528,7 +338,7 @@ class AlterEgoGUI:
     # -------- TTS --------
     def speak(self, text: str):
         try:
-            _speak(text)
+            tts_speak(text)
         except Exception as e:
             logging.warning(f"[tts_warning] {e}")
 
@@ -544,7 +354,18 @@ class AlterEgoGUI:
         if self.executor_mode.get():
             user_text = "[mode: executor]\n" + user_text
 
-        response = self.shell.interact(user_text)
+        try:
+            response = self.shell.interact(user_text)
+        except Exception as exc:
+            logging.exception("interaction failed")
+            self.display_text(
+                (
+                    "[error] The model stumbled while replying. "
+                    f"Details: {exc}. See the log for the full trace.\n\n"
+                ),
+                "alter",
+            )
+            return
 
         if isinstance(response, str):
             self.display_text(f"{response}\n\n", "alter")
@@ -565,12 +386,7 @@ class AlterEgoGUI:
 
     # -------- Graceful shutdown --------
     def on_close(self):
-        try:
-            if _tts_q is not None:
-                _tts_q.put(None)  # stop TTS loop
-                time.sleep(0.1)
-        except Exception:
-            pass
+        shutdown_tts()
         try:
             _syslog_fp.flush()
             _syslog_fp.close()
@@ -581,7 +397,7 @@ class AlterEgoGUI:
 
 # === Launch GUI ===
 def main():
-    _start_tts_loop()
+    start_tts_loop()
     cfg = load_gui_config()
     theme = cfg.get("theme")
     root = tk.Tk()
