@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 import inspect
-import os
 import logging
 import threading
 
@@ -26,6 +25,7 @@ class AlterShell:
         self.fronting = PersonaFronting()
 
         # SQLite DB path for embeddings.
+        self.db_path = str(get_memory_db_path())
         default_db = get_memory_db_path()
         env_override = os.getenv("MEMORY_DB")
         self.db_path = str(Path(env_override).expanduser()) if env_override else str(default_db)

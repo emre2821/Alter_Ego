@@ -1,6 +1,4 @@
-# alter_ego_gui.py
-# Alter/Ego GUI frontend with dynamic themes, model folder watcher, TTS (threaded),
-# logging/tee to file, Executor mode toggle, and optional Prismari commentary.
+"""Alter/Ego GUI frontend with modular helpers."""
 
 from __future__ import annotations
 
@@ -8,13 +6,26 @@ import os
 import sys
 import datetime
 import logging
+import os
+import sys
 from pathlib import Path
 import tkinter as tk
-from tkinter import scrolledtext, messagebox, filedialog
+from tkinter import filedialog, messagebox, scrolledtext
 
-# Keep GPT4All quiet about CUDA unless you explicitly want GPU later.
 os.environ.setdefault("GPT4ALL_NO_CUDA", "1")
 
+try:
+    from prismari import Prismari  # type: ignore
+except Exception:
+    Prismari = None
+
+from alter_shell import AlterShell
+from persona_fronting import PersonaFronting
+from configuration import get_model_name, get_persona_root
+from gui.prefs import load_gui_config, save_gui_config
+from gui.themes import BUILTIN_THEMES, load_json_themes
+from gui.models import list_models, resolve_models_dir
+from gui.tts import shutdown as shutdown_tts, speak as tts_speak, start as start_tts
 # Optional Prismari (palette muse)
 try:
     from prismari import Prismari  # provides default_comments + helpers
@@ -30,54 +41,53 @@ from gui.prefs import load_gui_config, save_gui_config
 from gui.themes import BUILTIN_THEMES, THEME_DIR, load_json_themes
 from gui.tts import speak as tts_speak, start_tts_loop, shutdown_tts
 
-# =========================
-# Logging + tee setup
-# =========================
 APP_DIR = Path(__file__).resolve().parent
 LOG_DIR = APP_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
-_LOGFILE = LOG_DIR / f"ae_{datetime.datetime.now():%Y%m%d_%H%M%S}.log"
+LOG_FILE = LOG_DIR / f"ae_{datetime.datetime.now():%Y%m%d_%H%M%S}.log"
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
-        logging.FileHandler(_LOGFILE, encoding="utf-8"),
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
         logging.StreamHandler(sys.stdout),
     ],
 )
 log = logging.getLogger("alter_ego_gui")
 
 
-def _excepthook(exc_type, exc, tb):
-    logging.critical("UNCAUGHT", exc_info=(exc_type, exc, tb))
-sys.excepthook = _excepthook
-
-
 class _Tee:
-    """Mirror stdout/stderr to the logfile while keeping console output."""
     def __init__(self, *streams):
         self.streams = streams
 
     def write(self, data):
-        for s in self.streams:
+        for stream in self.streams:
             try:
-                s.write(data)
+                stream.write(data)
             except Exception:
                 pass
 
     def flush(self):
-        for s in self.streams:
+        for stream in self.streams:
             try:
-                s.flush()
+                stream.flush()
             except Exception:
                 pass
 
 
-# Mirror stdout/stderr into the logfile
-_syslog_fp = open(_LOGFILE, "a", encoding="utf-8")
+def _excepthook(exc_type, exc, tb):
+    logging.critical("UNCAUGHT", exc_info=(exc_type, exc, tb))
+
+
+sys.excepthook = _excepthook
+_syslog_fp = open(LOG_FILE, "a", encoding="utf-8")
 sys.stdout = _Tee(sys.stdout, _syslog_fp)
 sys.stderr = _Tee(sys.stderr, _syslog_fp)
+
+THEME_DIR = Path(os.getenv("THEME_DIR") or (APP_DIR / "themes"))
+WELCOME_MODEL = "DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf"
+
 
 # =========================
 # Config / Themes
@@ -360,35 +370,40 @@ class AlterEgoGUI:
         self.root = root
         self.root.title("Alter/Ego")
 
-        # Runtime core
         self.shell = AlterShell()
         self.fronting = PersonaFronting()
 
-        # Config + themes
         self.cfg = load_gui_config()
         self.themes = load_json_themes(THEME_DIR)
         if not self.themes:
             log.info("No JSON themes found in %s; using built-in themes", THEME_DIR)
             self.themes = BUILTIN_THEMES.copy()
 
-        # State
         self.prismari_enabled = tk.BooleanVar(value=bool(self.cfg.get("prismari_enabled", True)))
         self.executor_mode = tk.BooleanVar(value=False)
-        self.current_theme_name = initial_theme or self.cfg.get("theme") or next(iter(self.themes.keys()))
-        self.current_model = self.cfg.get("model")  # may be None
 
+        theme_name = initial_theme or self.cfg.get("theme") or next(iter(self.themes.keys()))
+        self.current_theme_name = theme_name
+        self.current_model = self.cfg.get("model")
+
+        self.models_dir = resolve_models_dir()
+        self._models_list: list[str] = list_models(self.models_dir)
+        if self.current_model and self.current_model not in self._models_list:
+            self.current_model = None
         # Models folder + live list
         self.models_dir = default_models_dir()
         self._models_list: list[str] = list_models(self.models_dir)
 
-        # Widgets
         self.text_area: scrolledtext.ScrolledText | None = None
         self.entry: tk.Entry | None = None
 
-        # Build UI
         self._build_menu()
         self._apply_theme(self.current_theme_name)
 
+        self._show_welcome_banner()
+        self._show_persona_status()
+        self._show_model_status()
+        self._update_title()
         # Persona availability banner
         try:
             persona_root = Path(get_persona_root())
@@ -439,14 +454,18 @@ class AlterEgoGUI:
                 "alter",
             )
 
-        # Clean shutdown
+        self.root.after(2000, self._poll_models)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
-    # -------- Menu --------
+        if self.current_model and (self.models_dir / self.current_model).exists():
+            try:
+                self.shell.select_model(str(self.models_dir), self.current_model)
+            except Exception as exc:
+                self.display_text(f"[notice] Could not restore model '{self.current_model}': {exc}\n\n", "alter")
+
     def _build_menu(self):
         menu = tk.Menu(self.root)
 
-        # Themes
         theme_menu = tk.Menu(menu, tearoff=0)
         for name in sorted(self.themes.keys()):
             theme_menu.add_command(label=name, command=lambda n=name: self.set_theme(n))
@@ -454,12 +473,10 @@ class AlterEgoGUI:
         theme_menu.add_command(label="Reload themes", command=self._reload_themes)
         menu.add_cascade(label="Themes", menu=theme_menu)
 
-        # Models (dynamic)
         self._model_menu = tk.Menu(menu, tearoff=0)
         self._rebuild_model_menu()
         menu.add_cascade(label="Models", menu=self._model_menu)
 
-        # Settings
         settings_menu = tk.Menu(menu, tearoff=0)
         settings_menu.add_checkbutton(
             label="Enable Prismari commentary",
@@ -469,13 +486,11 @@ class AlterEgoGUI:
         settings_menu.add_checkbutton(
             label="Executor mode (concise)",
             variable=self.executor_mode,
-            command=lambda: None,
         )
         menu.add_cascade(label="Settings", menu=settings_menu)
 
         self.root.config(menu=menu)
 
-    # -------- Theme logic --------
     def _apply_theme(self, theme_name: str):
         theme = self.themes.get(theme_name)
         if not theme:
@@ -488,7 +503,6 @@ class AlterEgoGUI:
         save_gui_config(self.cfg)
 
         font = (theme.get("font_family", "Consolas"), int(theme.get("font_size", 11)))
-
         self.root.configure(bg=theme["bg"])
 
         if self.text_area is None:
@@ -532,21 +546,22 @@ class AlterEgoGUI:
             if line:
                 self.display_text(f"[prismari] “{line}”\n\n", "prismari")
 
-        active_persona = self.fronting.get_active()
-        self.root.title(f"Alter/Ego — {active_persona}" if active_persona else "Alter/Ego")
+        self._update_title()
 
     def _reload_themes(self):
-        self.themes = load_json_themes(THEME_DIR) or BUILTIN_THEMES.copy()
+        if refreshed := load_json_themes(THEME_DIR):
+            self.themes = refreshed
+        else:
+            self.display_text("[notice] No custom themes detected. Built-ins remain.\n\n", "alter")
+            self.themes = BUILTIN_THEMES.copy()
         self._build_menu()
+        self._apply_theme(self.current_theme_name)
         self.display_text("[notice] Themes reloaded.\n\n", "alter")
-
-    def set_theme(self, name: str):
-        self._apply_theme(name)
 
     def _prismari_line_for_theme(self, theme_name: str) -> str | None:
         if Prismari:
-            p = Prismari()
-            return p.default_comments[hash(theme_name) % len(p.default_comments)]
+            muse = Prismari()
+            return muse.default_comments[hash(theme_name) % len(muse.default_comments)]
         lines = [
             "Soft chaos, but make it fashion.",
             "High-drama and probably haunted. I’m obsessed.",
@@ -555,7 +570,58 @@ class AlterEgoGUI:
         ]
         return lines[hash(theme_name) % len(lines)]
 
-    # -------- Dynamic Models menu --------
+    def _persona_hint(self) -> str:
+        persona_root = get_persona_root()
+        hint = (
+            f"[notice] No personas were found in {persona_root}.\n"
+            "Drop `.chaos` or `.mirror.json` persona files there, or see the README's persona section.\n"
+            "https://github.com/Autumnus-Labs/AlterEgo#persona-simulation\n\n"
+        )
+        return hint
+
+    def _show_persona_status(self):
+        try:
+            persona_root = get_persona_root()
+            if not persona_root.exists():
+                self.display_text(self._persona_hint(), "alter")
+                return
+            count = sum(1 for _ in persona_root.rglob("*.mirror.json")) + sum(1 for _ in persona_root.rglob("*.chaos"))
+            if count == 0:
+                self.display_text(self._persona_hint(), "alter")
+        except Exception as exc:
+            self.display_text(f"[notice] Persona check skipped: {exc}\n\n", "alter")
+
+    def _show_welcome_banner(self):
+        message = (
+            "Alter/Ego is awake.\n"
+            f"If you're just starting, try the starter model `{WELCOME_MODEL}` in your models folder.\n"
+            "Drop `.gguf` files into the folder and open Models → choose the file.\n"
+            "Details: https://github.com/Autumnus-Labs/AlterEgo#recommended-starter-model\n\n"
+        )
+        self.display_text(message, "alter")
+
+    def _show_model_status(self):
+        if not self._models_list:
+            self.display_text(
+                "[notice] No `.gguf` models detected yet.\n"
+                "Follow the README's model setup section or download GPT4All starter packs.\n"
+                "https://github.com/Autumnus-Labs/AlterEgo#model-setup\n\n",
+                "alter",
+            )
+            return
+        desired = self.current_model or get_model_name()
+        if desired and desired not in self._models_list:
+            self.display_text(
+                f"[notice] `{desired}` is missing from {self.models_dir}.\n"
+                "Select an available model from the menu or drop the file into the folder.\n\n",
+                "alter",
+            )
+        elif not desired:
+            self.display_text(
+                "[notice] No model selected yet. Use the Models menu to pick a `.gguf`.\n\n",
+                "alter",
+            )
+
     def _rebuild_model_menu(self):
         self._model_menu.delete(0, tk.END)
         self._model_menu.add_command(label=f"Folder: {self.models_dir}", state="disabled")
@@ -587,37 +653,40 @@ class AlterEgoGUI:
             self.display_text("[notice] Model list updated.\n\n", "alter")
         self.root.after(2000, self._poll_models)
 
-    # -------- Model selection --------
+    def set_theme(self, theme_name: str):
+        self._apply_theme(theme_name)
+
     def set_model(self, model_filename: str | None):
         if model_filename:
             os.environ["GPT4ALL_MODEL_DIR"] = str(self.models_dir)
             os.environ["GPT4ALL_MODEL"] = model_filename
             self.cfg["model"] = model_filename
+            self.current_model = model_filename
             save_gui_config(self.cfg)
             try:
                 self.shell.select_model(str(self.models_dir), model_filename)
                 self.display_text(f"[notice] Model selected: {model_filename}\n\n", "alter")
-            except Exception as e:
-                self.display_text(f"[notice] Could not select model: {e}\n\n", "alter")
+            except Exception as exc:
+                self.display_text(f"[notice] Could not select model: {exc}\n\n", "alter")
         else:
             self.cfg["model"] = None
             save_gui_config(self.cfg)
-            if "GPT4ALL_MODEL" in os.environ:
-                del os.environ["GPT4ALL_MODEL"]
+            os.environ.pop("GPT4ALL_MODEL", None)
+            self.current_model = None
             try:
                 self.shell.select_model(str(self.models_dir), None)
             except Exception:
                 pass
             self.display_text("[notice] Cleared model selection. Pick one from the menu.\n\n", "alter")
 
-    # -------- TTS --------
     def speak(self, text: str):
         try:
             tts_speak(text)
+        except Exception as exc:
+            logging.warning("[tts_warning] %s", exc)
         except Exception as e:
             logging.warning(f"[tts_warning] {e}")
 
-    # -------- Chat flow --------
     def send_input(self, event=None):
         user_text = self.entry.get().strip()
         if not user_text:
@@ -632,6 +701,11 @@ class AlterEgoGUI:
         try:
             response = self.shell.interact(user_text)
         except Exception as exc:
+            logging.exception("shell.interact failed")
+            self.display_text(
+                "[error] Something went wrong while talking to the runtime.\n"
+                f"{exc}\n"
+                "Check the logs folder for full tracebacks.\n\n",
             logging.exception("interaction failed")
             self.display_text(
                 (
@@ -646,8 +720,7 @@ class AlterEgoGUI:
             self.display_text(f"{response}\n\n", "alter")
             self.speak(response)
 
-        active_persona = self.fronting.get_active()
-        self.root.title(f"Alter/Ego — {active_persona}" if active_persona else "Alter/Ego")
+        self._update_title()
 
     def display_text(self, text: str, tag: str):
         self.text_area.configure(state="normal")
@@ -659,7 +732,10 @@ class AlterEgoGUI:
         self.cfg["prismari_enabled"] = bool(self.prismari_enabled.get())
         save_gui_config(self.cfg)
 
-    # -------- Graceful shutdown --------
+    def _update_title(self):
+        active_persona = self.fronting.get_active()
+        self.root.title(f"Alter/Ego — {active_persona}" if active_persona else "Alter/Ego")
+
     def on_close(self):
         shutdown_tts()
         try:
@@ -670,13 +746,13 @@ class AlterEgoGUI:
         self.root.destroy()
 
 
-# === Launch GUI ===
 def main():
+    start_tts()
     start_tts_loop()
     cfg = load_gui_config()
     theme = cfg.get("theme")
     root = tk.Tk()
-    gui = AlterEgoGUI(root, initial_theme=theme)
+    AlterEgoGUI(root, initial_theme=theme)
     root.mainloop()
 
 

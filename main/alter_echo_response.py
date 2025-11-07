@@ -6,6 +6,14 @@ try:
     from Lyss.modules.emotional_parser import analyze_emotion  # type: ignore
 except Exception:
     from echo_whisper_layer import analyze_emotion  # local minimal stub
+from configuration import get_persona_root
+from persona_fronting import PersonaFronting
+from persona_simulator import PersonaSimulator
+
+class AlterEchoResponse:
+    def __init__(self, persona_dir=None):
+        if persona_dir is None:
+            persona_dir = get_persona_root()
 from pathlib import Path
 
 from persona_simulator import PersonaSimulator
