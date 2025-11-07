@@ -25,6 +25,8 @@ def load_gui_config() -> Dict[str, Any]:
             if isinstance(loaded, dict):
                 prefs.update(loaded)
         except (json.JSONDecodeError, OSError) as exc:
+                prefs |= loaded
+        except Exception as exc:
             print(f"[config_warning] could not read {CONFIG_PATH}: {exc}")
 
     env_theme = os.getenv("ALTER_EGO_THEME")
