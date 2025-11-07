@@ -406,6 +406,8 @@ class AlterEgoGUI:
         self._update_title()
         # Persona availability banner
         try:
+            persona_root = os.getenv("PERSONA_ROOT") or (APP_DIR / "personas")
+            pr = Path(persona_root)
             persona_root = Path(get_persona_root())
             pr = persona_root
             count = 0
