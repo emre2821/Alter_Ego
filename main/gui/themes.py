@@ -149,8 +149,7 @@ def load_json_themes(theme_dir: Path) -> Dict[str, Dict]:
     for path in sorted(theme_dir.glob("*.json")):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            normalized = _normalize_theme_json(path.stem, data)
-            if normalized:
+            if normalized := _normalize_theme_json(path.stem, data):
                 themes[path.stem] = normalized
         except Exception as exc:
             print(f"[theme_warning] Could not load {path.name}: {exc}")
