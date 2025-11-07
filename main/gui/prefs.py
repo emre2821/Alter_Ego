@@ -59,7 +59,7 @@ def load_gui_config() -> dict:
         except Exception:
             loaded = {}
         if isinstance(loaded, dict):
-            cfg.update(loaded)
+            cfg |= loaded
     if env_theme := os.getenv("ALTER_EGO_THEME"):
         cfg["theme"] = env_theme
     return cfg
