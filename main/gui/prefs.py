@@ -47,7 +47,7 @@ def save_gui_config(prefs: Dict[str, Any]) -> None:
     try:
         serialized_prefs = json.dumps(prefs, indent=2)
     except (TypeError, ValueError) as exc:
-        log.warning("[config_warning] could not serialize prefs: %s", exc)
+        log.warning("[config_warning] could not serialize prefs: %s; problematic prefs: %r", exc, prefs)
         return
 
     temp_path: Path | None = None
