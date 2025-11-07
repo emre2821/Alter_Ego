@@ -23,7 +23,7 @@ def load_gui_config() -> Dict[str, Any]:
         try:
             loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
             if isinstance(loaded, dict):
-                prefs.update(loaded)
+                prefs |= loaded
         except Exception as exc:
             print(f"[config_warning] could not read {CONFIG_PATH}: {exc}")
 
