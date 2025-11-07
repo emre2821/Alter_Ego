@@ -2,11 +2,13 @@
 # Centralizes GPT4All prompt build + shared model cache (CPU-only by default).
 from __future__ import annotations
 from typing import List, Optional
-from pathlib import Path
-import os
 import logging
+import os
+from pathlib import Path
 
 from dummy_llm import DummyLLM
+from configuration import get_model_name, get_models_dir
+from configuration import get_models_dir
 
 os.environ.setdefault("GPT4ALL_NO_CUDA", "1")
 log = logging.getLogger("chaos_rag_wrapper")
@@ -16,8 +18,6 @@ try:
 except Exception as e:
     GPT4All = None  # type: ignore
     logging.error("gpt4all not installed: %s", e)
-
-APP_DIR = Path(__file__).resolve().parent
 
 # ---------- Prompt build ----------
 def _build_injected_prompt(prompt: str, memory_used: List[str]) -> str:
@@ -35,27 +35,17 @@ def _build_injected_prompt(prompt: str, memory_used: List[str]) -> str:
     memory_block = "\n".join(f"Memory: {m}" for m in (memory_used or []))
     return f"{persona_prefix}\n{memory_block}\n\nUser said: {prompt}\nRespond with resonance."
 
-# ---------- Model discovery ----------
 def _discover_models_dir() -> Path:
-    # Accept both singular/plural env names; then typical GPT4All folder; then ./models
-    for env in ("GPT4ALL_MODEL_DIR", "GPT4ALL_MODELS_DIR"):
-        d = os.getenv(env)
-        if d and Path(d).exists():
-            return Path(d)
+    return get_models_dir()
 
-    lad = os.getenv("LOCALAPPDATA")
-    if lad:
-        p = Path(lad) / "nomic.ai" / "GPT4All"
-        if p.exists():
-            return p
 
-    p = Path.home() / "AppData" / "Local" / "nomic.ai" / "GPT4All"
-    if p.exists():
-        return p
-
-    fallback = APP_DIR / "models"
-    fallback.mkdir(parents=True, exist_ok=True)
-    return fallback
+def _resolve_model_name(models_dir: Path) -> str:
+    configured = os.getenv("GPT4ALL_MODEL") or get_model_name()
+    if configured and (models_dir / configured).exists():
+        return configured
+    path = get_models_dir()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _discover_model_name(models_dir: Path) -> str:
@@ -70,6 +60,10 @@ def _discover_model_name(models_dir: Path) -> str:
             f"No .gguf models found in {models_dir}. Set GPT4ALL_MODEL or drop a model there."
         )
     return ggufs[0].name
+
+
+def _discover_model_name(models_dir: Path) -> str:
+    return _resolve_model_name(models_dir)
 
 # ---------- Shared model cache + selection ----------
 # Dummy engine cache (shared across calls)
@@ -126,8 +120,8 @@ def _gpt4all_reachable() -> bool:
         return False
 
     try:
-        models_dir = _SEL_DIR or _discover_models_dir()
-        _ = _SEL_NAME or _discover_model_name(models_dir)
+        models_dir = _SEL_DIR or get_models_dir()
+        _ = _SEL_NAME or _resolve_model_name(models_dir)
     except FileNotFoundError:
         return False
     except Exception as exc:  # pragma: no cover - defensive guard
@@ -148,8 +142,8 @@ def get_shared_model() -> Optional[GPT4All]:
     if _MODEL is not None:
         return _MODEL
 
-    models_dir = _SEL_DIR or _discover_models_dir()
-    model_name = _SEL_NAME or _discover_model_name(models_dir)
+    models_dir = _SEL_DIR or get_models_dir()
+    model_name = _SEL_NAME or _resolve_model_name(models_dir)
 
     _MODEL_DIR = models_dir
     _MODEL_NAME = model_name
