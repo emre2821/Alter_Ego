@@ -334,7 +334,7 @@ class AlterEgoGUI:
 
         # Persona availability banner
         try:
-            persona_root = os.getenv("PERSONA_ROOT") or r"C:\EdenOS_Origin\all_daemons"
+            persona_root = os.getenv("PERSONA_ROOT") or (APP_DIR / "personas")
             pr = Path(persona_root)
             count = 0
             if pr.exists():
