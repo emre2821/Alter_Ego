@@ -4,26 +4,16 @@
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 import datetime
 import logging
 from pathlib import Path
-import queue
-import threading
-import time
 import tkinter as tk
 from tkinter import scrolledtext, messagebox, filedialog
 
 # Keep GPT4All quiet about CUDA unless you explicitly want GPU later.
 os.environ.setdefault("GPT4ALL_NO_CUDA", "1")
-
-# Optional TTS (available if pyttsx3 exists)
-try:
-    import pyttsx3  # type: ignore
-except Exception:
-    pyttsx3 = None  # noqa: N816
 
 # Optional Prismari (palette muse)
 try:
@@ -34,6 +24,11 @@ except Exception:
 # Eden runtime imports
 from alter_shell import AlterShell
 from persona_fronting import PersonaFronting
+from configuration import get_persona_root
+from gui.models import default_models_dir, list_models
+from gui.prefs import load_gui_config, save_gui_config
+from gui.themes import BUILTIN_THEMES, THEME_DIR, load_json_themes
+from gui.tts import speak as tts_speak, start_tts_loop, shutdown_tts
 
 # =========================
 # Logging + tee setup
@@ -383,8 +378,8 @@ class AlterEgoGUI:
         self.current_model = self.cfg.get("model")  # may be None
 
         # Models folder + live list
-        self.models_dir = _default_models_dir()
-        self._models_list: list[str] = _list_models(self.models_dir)
+        self.models_dir = default_models_dir()
+        self._models_list: list[str] = list_models(self.models_dir)
 
         # Widgets
         self.text_area: scrolledtext.ScrolledText | None = None
@@ -396,14 +391,18 @@ class AlterEgoGUI:
 
         # Persona availability banner
         try:
-            persona_root = os.getenv("PERSONA_ROOT") or r"C:\EdenOS_Origin\all_daemons"
-            pr = Path(persona_root)
+            persona_root = Path(get_persona_root())
+            pr = persona_root
             count = 0
             if pr.exists():
                 count = sum(1 for _ in pr.rglob("*.mirror.json")) + sum(1 for _ in pr.rglob("*.chaos"))
             if count == 0:
                 self.display_text(
-                    f"[notice] No personas found under '{persona_root}'. Set PERSONA_ROOT or add files.\n\n",
+                    (
+                        "[notice] No personas found under "
+                        f"'{persona_root}'. Add persona files to that folder or set PERSONA_ROOT.\n"
+                        "See README → Personas for starter options.\n\n"
+                    ),
                     "alter",
                 )
         except Exception as e:
@@ -415,6 +414,12 @@ class AlterEgoGUI:
         # If no model selected, prompt kindly
         if not self.current_model:
             self.display_text("[notice] No model selected. Open Models → pick a .gguf to load.\n\n", "alter")
+            guide = (
+                "[welcome] No voice selected yet. Open Models → pick a .gguf file once you've downloaded one.\n"
+                "Starter suggestion: DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf (see README).\n"
+                f"Drop it into {self.models_dir} or choose another folder from the Models menu.\n\n"
+            )
+            self.display_text(guide, "alter")
         elif self.current_model not in self._models_list:
             self.display_text(
                 (
@@ -428,6 +433,7 @@ class AlterEgoGUI:
             self.display_text(
                 (
                     "[guide] No .gguf files detected yet. Use the README link to download a model "
+                    "[guide] No .gguf files detected yet. Use the link in README to download a model "
                     "and place it inside the models directory.\n\n"
                 ),
                 "alter",
@@ -474,7 +480,7 @@ class AlterEgoGUI:
         theme = self.themes.get(theme_name)
         if not theme:
             messagebox.showwarning("Theme not found", f"Theme '{theme_name}' not found. Falling back to 'eden'.")
-            theme = BUILIN_THEMES["eden"]
+            theme = BUILTIN_THEMES["eden"]
             theme_name = "eden"
 
         self.current_theme_name = theme_name
@@ -569,12 +575,12 @@ class AlterEgoGUI:
             return
         self.models_dir = Path(chosen)
         os.environ["GPT4ALL_MODEL_DIR"] = str(self.models_dir)
-        self._models_list = _list_models(self.models_dir)
+        self._models_list = list_models(self.models_dir)
         self._rebuild_model_menu()
         self.display_text(f"[notice] Models folder set to: {self.models_dir}\n\n", "alter")
 
     def _poll_models(self):
-        current = _list_models(self.models_dir)
+        current = list_models(self.models_dir)
         if current != self._models_list:
             self._models_list = current
             self._rebuild_model_menu()
@@ -607,7 +613,7 @@ class AlterEgoGUI:
     # -------- TTS --------
     def speak(self, text: str):
         try:
-            _speak(text)
+            tts_speak(text)
         except Exception as e:
             logging.warning(f"[tts_warning] {e}")
 
@@ -623,7 +629,18 @@ class AlterEgoGUI:
         if self.executor_mode.get():
             user_text = "[mode: executor]\n" + user_text
 
-        response = self.shell.interact(user_text)
+        try:
+            response = self.shell.interact(user_text)
+        except Exception as exc:
+            logging.exception("interaction failed")
+            self.display_text(
+                (
+                    "[error] The model stumbled while replying. "
+                    f"Details: {exc}. See the log for the full trace.\n\n"
+                ),
+                "alter",
+            )
+            return
 
         if isinstance(response, str):
             self.display_text(f"{response}\n\n", "alter")
@@ -644,12 +661,7 @@ class AlterEgoGUI:
 
     # -------- Graceful shutdown --------
     def on_close(self):
-        try:
-            if _tts_q is not None:
-                _tts_q.put(None)  # stop TTS loop
-                time.sleep(0.1)
-        except Exception:
-            pass
+        shutdown_tts()
         try:
             _syslog_fp.flush()
             _syslog_fp.close()
@@ -660,7 +672,7 @@ class AlterEgoGUI:
 
 # === Launch GUI ===
 def main():
-    _start_tts_loop()
+    start_tts_loop()
     cfg = load_gui_config()
     theme = cfg.get("theme")
     root = tk.Tk()

@@ -6,20 +6,17 @@ try:
     from Lyss.modules.emotional_parser import analyze_emotion  # type: ignore
 except Exception:
     from echo_whisper_layer import analyze_emotion  # local minimal stub
+from pathlib import Path
+
 from persona_simulator import PersonaSimulator
 from persona_fronting import PersonaFronting
+from configuration import get_persona_root
 
 class AlterEchoResponse:
     def __init__(self, persona_dir=None):
         # Default to Lyss/all_daemons persona tree if present, else local ./personas
-        from pathlib import Path
-        import os
         if persona_dir is None:
-            env_root = os.getenv('PERSONA_ROOT')
-            if env_root:
-                candidate = Path(env_root)
-            else:
-                candidate = Path(r"C:\EdenOS_Origin\all_daemons")
+            candidate = Path(get_persona_root())
             persona_dir = candidate if candidate.exists() else Path("./personas")
         self.simulator = PersonaSimulator(persona_dir)
         self.fronting = PersonaFronting()
