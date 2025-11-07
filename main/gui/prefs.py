@@ -12,8 +12,8 @@ from typing import Any, Dict
 
 log = logging.getLogger("alter_ego_gui.prefs")
 
-APP_ROOT = Path(__file__).resolve().parents[1]
-CONFIG_PATH = APP_ROOT / "gui_config.json"
+APP_DIR = Path(__file__).resolve().parent.parent
+CONFIG_PATH = APP_DIR / "gui_config.json"
 
 _DEFAULT_PREFS: Dict[str, Any] = {
     "theme": "eden",
@@ -28,6 +28,15 @@ def load_gui_config() -> Dict[str, Any]:
     prefs = dict(_DEFAULT_PREFS)
     if CONFIG_PATH.exists():
         try:
+            if isinstance(
+                loaded := json.loads(CONFIG_PATH.read_text(encoding="utf-8")), dict
+            ):
+                prefs |= loaded
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"[config_warning] could not read {CONFIG_PATH}: {exc}")
+        except Exception as exc:
+            print(f"[config_warning] could not read {CONFIG_PATH}: {exc}")
+            if isinstance(loaded := json.loads(CONFIG_PATH.read_text(encoding="utf-8")), dict):
             loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
             log.warning("[config_warning] could not read %s: %s", CONFIG_PATH, exc)
@@ -40,6 +49,7 @@ def load_gui_config() -> Dict[str, Any]:
                     CONFIG_PATH,
                     type(loaded).__name__,
                 )
+                prefs.update(loaded)
 
     if env_theme := os.getenv("ALTER_EGO_THEME"):
         prefs["theme"] = env_theme
@@ -72,6 +82,17 @@ def save_gui_config(prefs: Dict[str, Any]) -> None:
         log.warning("[config_warning] could not write %s: %s", CONFIG_PATH, exc)
         if temp_path is not None and temp_path.exists():
             temp_path.unlink(missing_ok=True)
+        serialized_prefs = json.dumps(prefs, indent=2)
+    except (TypeError, ValueError) as exc:
+        log.warning("[config_warning] could not serialize prefs: %s", exc)
+        return
+
+    try:
+        CONFIG_PATH.write_text(serialized_prefs, encoding="utf-8")
+    except OSError as exc:
+        CONFIG_PATH.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
+    except (OSError, TypeError) as exc:
+        log.warning("[config_warning] could not write %s: %s", CONFIG_PATH, exc)
 
 
 __all__ = ["load_gui_config", "save_gui_config", "CONFIG_PATH"]
