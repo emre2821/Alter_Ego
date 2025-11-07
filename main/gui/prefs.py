@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Dict
 import json
 import logging
 import os
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from typing import Any, Dict
 
 
 log = logging.getLogger("alter_ego_gui.prefs")
@@ -27,14 +28,18 @@ def load_gui_config() -> Dict[str, Any]:
     prefs = dict(_DEFAULT_PREFS)
     if CONFIG_PATH.exists():
         try:
-            if isinstance(loaded := json.loads(CONFIG_PATH.read_text(encoding="utf-8")), dict):
             loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                prefs.update(loaded)
-        except (json.JSONDecodeError, OSError) as exc:
-                prefs |= loaded
         except (json.JSONDecodeError, OSError) as exc:
             log.warning("[config_warning] could not read %s: %s", CONFIG_PATH, exc)
+        else:
+            if isinstance(loaded, dict):
+                prefs.update(loaded)
+            else:
+                log.warning(
+                    "[config_warning] expected dict in %s but got %s",
+                    CONFIG_PATH,
+                    type(loaded).__name__,
+                )
 
     if env_theme := os.getenv("ALTER_EGO_THEME"):
         prefs["theme"] = env_theme
@@ -43,48 +48,30 @@ def load_gui_config() -> Dict[str, Any]:
 
 
 def save_gui_config(prefs: Dict[str, Any]) -> None:
-    """Persist GUI configuration to disk."""
+    """Persist GUI configuration to disk atomically."""
 
     try:
-        CONFIG_PATH.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
-    except (OSError, TypeError) as exc:
-        log.warning("[config_warning] could not write %s: %s", CONFIG_PATH, exc)
+        data = json.dumps(prefs, indent=2)
+    except TypeError as exc:
+        log.warning("[config_warning] could not serialize prefs: %s", exc)
+        return
+
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    temp_path = None
     try:
-        CONFIG_PATH.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
+        with NamedTemporaryFile(
+            "w", encoding="utf-8", dir=CONFIG_PATH.parent, delete=False
+        ) as tmp_file:
+            temp_path = Path(tmp_file.name)
+            tmp_file.write(data)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+        temp_path.replace(CONFIG_PATH)
     except OSError as exc:
-        print(f"[config_warning] could not write {CONFIG_PATH}: {exc}")
-"""Persisted GUI preferences (theme + selected model)."""
-
-from __future__ import annotations
-
-import json
-import os
-from pathlib import Path
-
-APP_DIR = Path(__file__).resolve().parent.parent
-CONFIG_PATH = APP_DIR / "gui_config.json"
-
-
-def load_gui_config() -> dict:
-    cfg = {"theme": "eden", "model": None, "prismari_enabled": True}
-    if CONFIG_PATH.exists():
-        try:
-            loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            loaded = {}
-        if isinstance(loaded, dict):
-            cfg |= loaded
-    if env_theme := os.getenv("ALTER_EGO_THEME"):
-        cfg["theme"] = env_theme
-    return cfg
-
-
-def save_gui_config(cfg: dict) -> None:
-    try:
-        CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    except OSError:
-        pass
+        log.warning("[config_warning] could not write %s: %s", CONFIG_PATH, exc)
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
 
 
 __all__ = ["load_gui_config", "save_gui_config", "CONFIG_PATH"]
-
