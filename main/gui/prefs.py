@@ -27,6 +27,15 @@ def load_gui_config() -> Dict[str, Any]:
     prefs = dict(_DEFAULT_PREFS)
     if CONFIG_PATH.exists():
         try:
+            if isinstance(
+                loaded := json.loads(CONFIG_PATH.read_text(encoding="utf-8")), dict
+            ):
+                prefs |= loaded
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"[config_warning] could not read {CONFIG_PATH}: {exc}")
+        except Exception as exc:
+            print(f"[config_warning] could not read {CONFIG_PATH}: {exc}")
+            if isinstance(loaded := json.loads(CONFIG_PATH.read_text(encoding="utf-8")), dict):
             loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
             log.warning("[config_warning] could not read %s: %s", CONFIG_PATH, exc)
