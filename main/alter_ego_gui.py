@@ -274,8 +274,7 @@ class AlterEgoGUI:
         self._update_title()
 
     def _reload_themes(self):
-        refreshed = load_json_themes(THEME_DIR)
-        if refreshed:
+        if refreshed := load_json_themes(THEME_DIR):
             self.themes = refreshed
         else:
             self.display_text("[notice] No custom themes detected. Built-ins remain.\n\n", "alter")
