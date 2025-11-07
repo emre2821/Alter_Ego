@@ -24,7 +24,7 @@ def load_gui_config() -> Dict[str, Any]:
             loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
             if isinstance(loaded, dict):
                 prefs.update(loaded)
-        except Exception as exc:
+        except (json.JSONDecodeError, OSError) as exc:
             print(f"[config_warning] could not read {CONFIG_PATH}: {exc}")
 
     env_theme = os.getenv("ALTER_EGO_THEME")
@@ -37,7 +37,7 @@ def load_gui_config() -> Dict[str, Any]:
 def save_gui_config(prefs: Dict[str, Any]) -> None:
     try:
         CONFIG_PATH.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
-    except Exception as exc:
+    except OSError as exc:
         print(f"[config_warning] could not write {CONFIG_PATH}: {exc}")
 """Persisted GUI preferences (theme + selected model)."""
 
@@ -56,7 +56,7 @@ def load_gui_config() -> dict:
     if CONFIG_PATH.exists():
         try:
             loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        except Exception:
+        except (json.JSONDecodeError, OSError):
             loaded = {}
         if isinstance(loaded, dict):
             cfg |= loaded
@@ -68,7 +68,7 @@ def load_gui_config() -> dict:
 def save_gui_config(cfg: dict) -> None:
     try:
         CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    except Exception:
+    except OSError:
         pass
 
 
