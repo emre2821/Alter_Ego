@@ -85,10 +85,7 @@ def _read_yaml_config() -> Dict:
 
 
 def _env(name: str) -> Optional[str]:
-    value = os.getenv(name)
-    if value:
-        return value.strip() or None
-    return None
+    return value.strip() or None if (value := os.getenv(name)) else None
 
 
 def get_persona_root() -> Path:
