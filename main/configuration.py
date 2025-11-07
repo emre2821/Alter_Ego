@@ -175,8 +175,7 @@ def get_memory_db_path() -> Path:
 def get_log_path() -> Path:
     """Return the default autosave log path."""
 
-    env_override = _env("ALTER_EGO_LOG_PATH")
-    if env_override:
+    if env_override := _env("ALTER_EGO_LOG_PATH"):
         return _expand(env_override)
 
     cfg = load_configuration()
