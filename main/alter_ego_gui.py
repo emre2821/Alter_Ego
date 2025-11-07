@@ -230,8 +230,7 @@ def _select_palette_from_collection(data: dict) -> dict | None:
     if not isinstance(palettes, list) or not palettes:
         return None
 
-    default_name = data.get("default_palette")
-    if default_name:
+    if default_name := data.get("default_palette"):
         for palette in palettes:
             if palette.get("name") == default_name:
                 return palette
