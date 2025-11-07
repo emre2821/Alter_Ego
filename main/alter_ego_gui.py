@@ -146,7 +146,7 @@ class AlterEgoGUI:
                 f"Drop it into {self.models_dir} or choose another folder from the Models menu.\n\n"
             )
             self.display_text(guide, "alter")
-        elif self.current_model and self.current_model not in self._models_list:
+        elif self.current_model not in self._models_list:
             self.display_text(
                 (
                     "[notice] Previously selected model is missing. "
