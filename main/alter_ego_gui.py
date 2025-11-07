@@ -87,9 +87,55 @@ sys.stderr = _Tee(sys.stderr, _syslog_fp)
 # =========================
 # Config / Themes
 # =========================
-CONFIG_PATH = APP_DIR / "gui_config.json"
+CONFIG_DIR = APP_DIR
+CONFIG_PATH = CONFIG_DIR / "gui_config.json"
+LEGACY_CONFIG_PATHS = [
+    APP_DIR / "config" / "gui_config.json",
+    APP_DIR.parent / "gui_config.json",
+    APP_DIR.parent / "config" / "gui_config.json",
+]
+LEGACY_THEME_DIRS = [APP_DIR.parent / "themes"]
+
+
+def _resolve_theme_dir() -> Path:
+    env_dir = os.getenv("THEME_DIR")
+    if env_dir:
+        return Path(env_dir)
+
+    candidate = APP_DIR / "themes"
+    if candidate.exists():
+        return candidate
+
+    for legacy in LEGACY_THEME_DIRS:
+        if legacy.exists():
+            log.warning(
+                "Using legacy theme directory at %s; move themes to %s or set THEME_DIR.",
+                legacy,
+                candidate,
+            )
+            return legacy
+
+    return candidate
+
+
+def _migrate_legacy_config() -> None:
+    if CONFIG_PATH.exists():
+        return
+
+    for legacy_path in LEGACY_CONFIG_PATHS:
+        if not legacy_path.exists():
+            continue
+        try:
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            CONFIG_PATH.write_text(legacy_path.read_text(encoding="utf-8"), encoding="utf-8")
+            log.info("Migrated legacy GUI config from %s to %s", legacy_path, CONFIG_PATH)
+            return
+        except Exception as exc:
+            log.warning("Failed to migrate GUI config from %s: %s", legacy_path, exc)
+
+
 # Looks for JSON themes under main/themes or THEME_DIR override
-THEME_DIR = Path(os.getenv("THEME_DIR") or (APP_DIR / "themes"))
+THEME_DIR = _resolve_theme_dir()
 
 BUILTIN_THEMES: dict[str, dict] = {
     "dark": {
@@ -129,17 +175,16 @@ BUILTIN_THEMES: dict[str, dict] = {
 
 
 def load_gui_config() -> dict:
+    _migrate_legacy_config()
     cfg = {"theme": "eden", "model": None, "prismari_enabled": True}
     if CONFIG_PATH.exists():
         try:
-            loaded = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                cfg.update(loaded)
-        except Exception as e:
-            print(f"[config_warning] could not read {CONFIG_PATH}: {e}")
+            if isinstance(loaded := json.loads(CONFIG_PATH.read_text(encoding="utf-8")), dict):
+                cfg |= loaded
+        except Exception as exc:
+            log.warning("Could not read %s: %s", CONFIG_PATH, exc)
 
-    env_theme = os.getenv("ALTER_EGO_THEME")
-    if env_theme:
+    if env_theme := os.getenv("ALTER_EGO_THEME"):
         cfg["theme"] = env_theme
 
     return cfg
@@ -147,9 +192,10 @@ def load_gui_config() -> dict:
 
 def save_gui_config(cfg: dict) -> None:
     try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    except Exception as e:
-        print(f"[config_warning] could not write {CONFIG_PATH}: {e}")
+    except Exception as exc:
+        log.warning("Could not write %s: %s", CONFIG_PATH, exc)
 
 
 def _coerce_theme_from_tokens(name: str, tokens: dict) -> dict:
@@ -183,32 +229,49 @@ def _coerce_theme_from_tokens(name: str, tokens: dict) -> dict:
     }
 
 
-def _normalize_theme_json(name: str, data: dict) -> dict | None:
-    if "eden_themes" in data and isinstance(data["eden_themes"], list) and data["eden_themes"]:
-        default_name = data.get("default_palette")
-        chosen = None
-        if default_name:
-            for t in data["eden_themes"]:
-                if t.get("name") == default_name:
-                    chosen = t
-                    break
-        if not chosen:
-            chosen = data["eden_themes"][0]
-        return _coerce_theme_from_tokens(chosen.get("name", name), chosen.get("tokens", {}))
+def _select_palette_from_collection(data: dict) -> dict | None:
+    palettes = data.get("eden_themes")
+    if not isinstance(palettes, list) or not palettes:
+        return None
 
-    if "tokens" in data and isinstance(data["tokens"], dict):
-        return _coerce_theme_from_tokens(data.get("name", name), data["tokens"])
+    default_name = data.get("default_palette")
+    if default_name:
+        for palette in palettes:
+            if palette.get("name") == default_name:
+                return palette
 
-    keys = {"bg", "text_bg", "text_fg", "user_fg", "alter_fg", "entry_bg", "entry_fg"}
-    if any(k in data for k in keys):
-        merged = BUILTIN_THEMES["dark"].copy()
-        merged.update(data)
-        merged.setdefault("font_family", "Consolas")
-        merged.setdefault("font_size", 11)
-        merged["_source"] = f"direct:{name}"
-        return merged
+    return palettes[0]
 
+
+def _extract_tokens_payload(name: str, data: dict) -> tuple[str, dict] | None:
+    tokens = data.get("tokens")
+    if isinstance(tokens, dict):
+        return data.get("name", name), tokens
     return None
+
+
+def _build_direct_theme(name: str, data: dict) -> dict | None:
+    keys = {"bg", "text_bg", "text_fg", "user_fg", "alter_fg", "entry_bg", "entry_fg"}
+    if not any(k in data for k in keys):
+        return None
+
+    merged = BUILTIN_THEMES["dark"].copy()
+    merged.update(data)
+    merged.setdefault("font_family", "Consolas")
+    merged.setdefault("font_size", 11)
+    merged["_source"] = f"direct:{name}"
+    return merged
+
+
+def _normalize_theme_json(name: str, data: dict) -> dict | None:
+    if palette := _select_palette_from_collection(data):
+        return _coerce_theme_from_tokens(palette.get("name", name), palette.get("tokens", {}))
+
+    if tokens_payload := _extract_tokens_payload(name, data):
+        payload_name, tokens = tokens_payload
+        return _coerce_theme_from_tokens(payload_name, tokens)
+
+    return _build_direct_theme(name, data)
 
 
 def load_json_themes(theme_dir: Path) -> dict[str, dict]:
@@ -224,12 +287,10 @@ def load_json_themes(theme_dir: Path) -> dict[str, dict]:
         return themes
     for p in sorted(theme_dir.glob("*.json")):
         try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-            norm = _normalize_theme_json(p.stem, data)
-            if norm:
+            if norm := _normalize_theme_json(p.stem, json.loads(p.read_text(encoding="utf-8"))):
                 themes[p.stem] = norm
-        except Exception as e:
-            print(f"[theme_warning] Could not load {p.name}: {e}")
+        except Exception as exc:
+            log.error("Failed to load theme file '%s': %s", p, exc)
     return themes
 
 # =========================
@@ -257,6 +318,7 @@ def _list_models(models_dir: Path) -> list[str]:
     try:
         return sorted([p.name for p in models_dir.glob("*.gguf")])
     except Exception:
+        log.exception("Failed to list models in directory: %s", models_dir)
         return []
 
 # =========================
@@ -353,6 +415,23 @@ class AlterEgoGUI:
         # If no model selected, prompt kindly
         if not self.current_model:
             self.display_text("[notice] No model selected. Open Models → pick a .gguf to load.\n\n", "alter")
+        elif self.current_model not in self._models_list:
+            self.display_text(
+                (
+                    "[notice] Previously selected model is missing. "
+                    "Check the Models folder or pick a new file.\n\n"
+                ),
+                "alter",
+            )
+
+        if not self._models_list:
+            self.display_text(
+                (
+                    "[guide] No .gguf files detected yet. Use the README link to download a model "
+                    "and place it inside the models directory.\n\n"
+                ),
+                "alter",
+            )
 
         # Clean shutdown
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
