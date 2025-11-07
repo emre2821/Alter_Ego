@@ -115,8 +115,7 @@ def load_json_themes(theme_dir: Path) -> Dict[str, Dict]:
     for p in sorted(theme_dir.glob("*.json")):
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
-            norm = _normalize_theme_json(p.stem, data)
-            if norm:
+            if norm := _normalize_theme_json(p.stem, data):
                 themes[p.stem] = norm
         except Exception as e:
             logging.error(f"Failed to load theme file '{p}': {e}")
