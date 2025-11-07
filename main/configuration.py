@@ -161,8 +161,7 @@ def get_model_name(default: Optional[str] = None) -> Optional[str]:
 def get_memory_db_path() -> Path:
     """Return the SQLite database used for memory embeddings."""
 
-    env_override = _env("MEMORY_DB")
-    if env_override:
+    if env_override := _env("MEMORY_DB"):
         return _expand(env_override)
 
     cfg = load_configuration()
