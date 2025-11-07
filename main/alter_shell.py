@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 import inspect
-import os
 import logging
 import threading
 
@@ -13,6 +12,7 @@ from autosave_echo_daemon import autosave_prompt
 from alter_echo_response import AlterEchoResponse
 from persona_fronting import PersonaFronting
 from chaos_rag_wrapper import generate_alter_ego_response, get_shared_model
+from configuration import get_memory_db_path
 
 log = logging.getLogger("alter_shell")
 
@@ -23,8 +23,7 @@ class AlterShell:
         self.fronting = PersonaFronting()
 
         # SQLite DB path for embeddings.
-        # Defaults to 'alter_ego_memory.db' in the current working directory; override with MEMORY_DB env var.
-        self.db_path = os.getenv("MEMORY_DB", os.path.join(os.getcwd(), "alter_ego_memory.db"))
+        self.db_path = str(get_memory_db_path())
         init_db(self.db_path)
 
         # Shared LLM instance loaded in background
