@@ -61,6 +61,30 @@ def save_gui_config(prefs: Dict[str, Any]) -> None:
     """Persist GUI configuration to disk atomically."""
 
     try:
+        serialized_prefs = json.dumps(prefs, indent=2)
+    except (TypeError, ValueError) as exc:
+        log.warning("[config_warning] could not serialize prefs: %s", exc)
+        return
+
+    temp_path: Path | None = None
+    try:
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=str(CONFIG_PATH.parent),
+            delete=False,
+        ) as temp_file:
+            temp_file.write(serialized_prefs)
+            temp_path = Path(temp_file.name)
+        os.replace(temp_path, CONFIG_PATH)
+    except OSError as exc:
+        log.warning("[config_warning] could not write %s: %s", CONFIG_PATH, exc)
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
         data = json.dumps(prefs, indent=2)
     except TypeError as exc:
         log.warning("[config_warning] could not serialize prefs: %s", exc)
