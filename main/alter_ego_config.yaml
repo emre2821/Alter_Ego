@@ -6,6 +6,9 @@ embed_model_name: all-MiniLM-L6-v2
 db_path: alter_ego_memory.db
 embedding_cache: true
 
+persona_root: personas
+models_dir: models
+
 top_k: 5
 max_tokens: 512
 temperature: 0.7

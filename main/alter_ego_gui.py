@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import sys
 import datetime
 import logging
 import os
@@ -24,6 +26,20 @@ from gui.prefs import load_gui_config, save_gui_config
 from gui.themes import BUILTIN_THEMES, load_json_themes
 from gui.models import list_models, resolve_models_dir
 from gui.tts import shutdown as shutdown_tts, speak as tts_speak, start as start_tts
+# Optional Prismari (palette muse)
+try:
+    from prismari import Prismari  # provides default_comments + helpers
+except Exception:
+    Prismari = None  # noqa: N816
+
+# Eden runtime imports
+from alter_shell import AlterShell
+from persona_fronting import PersonaFronting
+from configuration import get_persona_root
+from gui.models import default_models_dir, list_models
+from gui.prefs import load_gui_config, save_gui_config
+from gui.themes import BUILTIN_THEMES, THEME_DIR, load_json_themes
+from gui.tts import speak as tts_speak, start_tts_loop, shutdown_tts
 
 APP_DIR = Path(__file__).resolve().parent
 LOG_DIR = APP_DIR / "logs"
@@ -73,6 +89,9 @@ THEME_DIR = Path(os.getenv("THEME_DIR") or (APP_DIR / "themes"))
 WELCOME_MODEL = "DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf"
 
 
+# =========================
+# GUI
+# =========================
 class AlterEgoGUI:
     def __init__(self, root: tk.Tk, initial_theme: str | None = None):
         self.root = root
@@ -98,6 +117,9 @@ class AlterEgoGUI:
         self._models_list: list[str] = list_models(self.models_dir)
         if self.current_model and self.current_model not in self._models_list:
             self.current_model = None
+        # Models folder + live list
+        self.models_dir = default_models_dir()
+        self._models_list: list[str] = list_models(self.models_dir)
 
         self.text_area: scrolledtext.ScrolledText | None = None
         self.entry: tk.Entry | None = None
@@ -109,6 +131,53 @@ class AlterEgoGUI:
         self._show_persona_status()
         self._show_model_status()
         self._update_title()
+        # Persona availability banner
+        try:
+            persona_root = Path(get_persona_root())
+            pr = persona_root
+            count = 0
+            if pr.exists():
+                count = sum(1 for _ in pr.rglob("*.mirror.json")) + sum(1 for _ in pr.rglob("*.chaos"))
+            if count == 0:
+                self.display_text(
+                    (
+                        "[notice] No personas found under "
+                        f"'{persona_root}'. Add persona files to that folder or set PERSONA_ROOT.\n"
+                        "See README → Personas for starter options.\n\n"
+                    ),
+                    "alter",
+                )
+        except Exception as e:
+            self.display_text(f"[notice] Persona check skipped: {e}\n\n", "alter")
+
+        # Watcher for model folder changes
+        self.root.after(2000, self._poll_models)
+
+        # If no model selected, prompt kindly
+        if not self.current_model:
+            guide = (
+                "[welcome] No voice selected yet. Open Models → pick a .gguf file once you've downloaded one.\n"
+                "Starter suggestion: DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf (see README).\n"
+                f"Drop it into {self.models_dir} or choose another folder from the Models menu.\n\n"
+            )
+            self.display_text(guide, "alter")
+        elif self.current_model not in self._models_list:
+            self.display_text(
+                (
+                    "[notice] Previously selected model is missing. "
+                    "Check the Models folder or pick a new file.\n\n"
+                ),
+                "alter",
+            )
+
+        if not self._models_list:
+            self.display_text(
+                (
+                    "[guide] No .gguf files detected yet. Use the link in README to download a model "
+                    "and place it inside the models directory.\n\n"
+                ),
+                "alter",
+            )
 
         self.root.after(2000, self._poll_models)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -341,6 +410,8 @@ class AlterEgoGUI:
             tts_speak(text)
         except Exception as exc:
             logging.warning("[tts_warning] %s", exc)
+        except Exception as e:
+            logging.warning(f"[tts_warning] {e}")
 
     def send_input(self, event=None):
         user_text = self.entry.get().strip()
@@ -361,6 +432,12 @@ class AlterEgoGUI:
                 "[error] Something went wrong while talking to the runtime.\n"
                 f"{exc}\n"
                 "Check the logs folder for full tracebacks.\n\n",
+            logging.exception("interaction failed")
+            self.display_text(
+                (
+                    "[error] The model stumbled while replying. "
+                    f"Details: {exc}. See the log for the full trace.\n\n"
+                ),
                 "alter",
             )
             return
@@ -397,6 +474,7 @@ class AlterEgoGUI:
 
 def main():
     start_tts()
+    start_tts_loop()
     cfg = load_gui_config()
     theme = cfg.get("theme")
     root = tk.Tk()

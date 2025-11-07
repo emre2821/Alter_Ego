@@ -24,4 +24,10 @@ python alter_ego_computer.py scan-dupes
 # $env:PERSONA_ROOT = "D:\Shared\Personas"
 # $env:GPT4ALL_MODEL_DIR = "D:\Models\GPT4All"
 # $env:MEMORY_DB = "D:\AlterEgo\memory.db"
+# STEP 7: Launch the GUI (defaults to .\main\personas and .\main\models)
+# Uncomment these lines if you want to point at custom folders:
+# $env:PERSONA_ROOT = "C:\path\to\your\personas"
+# $env:GPT4ALL_MODEL_DIR = "D:\models\gpt4all"
+# $env:GPT4ALL_MODEL = "DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf"
+# $env:ENABLE_TTS = '0'
 python alter_ego_computer.py launch

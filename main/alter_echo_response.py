@@ -14,6 +14,18 @@ class AlterEchoResponse:
     def __init__(self, persona_dir=None):
         if persona_dir is None:
             persona_dir = get_persona_root()
+from pathlib import Path
+
+from persona_simulator import PersonaSimulator
+from persona_fronting import PersonaFronting
+from configuration import get_persona_root
+
+class AlterEchoResponse:
+    def __init__(self, persona_dir=None):
+        # Default to Lyss/all_daemons persona tree if present, else local ./personas
+        if persona_dir is None:
+            candidate = Path(get_persona_root())
+            persona_dir = candidate if candidate.exists() else Path("./personas")
         self.simulator = PersonaSimulator(persona_dir)
         self.fronting = PersonaFronting()
 

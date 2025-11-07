@@ -8,6 +8,7 @@ from pathlib import Path
 
 from dummy_llm import DummyLLM
 from configuration import get_model_name, get_models_dir
+from configuration import get_models_dir
 
 os.environ.setdefault("GPT4ALL_NO_CUDA", "1")
 log = logging.getLogger("chaos_rag_wrapper")
@@ -42,6 +43,16 @@ def _resolve_model_name(models_dir: Path) -> str:
     configured = os.getenv("GPT4ALL_MODEL") or get_model_name()
     if configured and (models_dir / configured).exists():
         return configured
+    path = get_models_dir()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _discover_model_name(models_dir: Path) -> str:
+    # If GPT4ALL_MODEL is set, use it when present
+    env_name = os.getenv("GPT4ALL_MODEL")
+    if env_name and (models_dir / env_name).exists():
+        return env_name
 
     ggufs = sorted(models_dir.glob("*.gguf"))
     if not ggufs:

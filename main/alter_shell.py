@@ -7,6 +7,8 @@ import inspect
 import logging
 import threading
 
+from pathlib import Path
+
 from sqlite_memory import init_db, search, add as mem_add
 from autosave_echo_daemon import autosave_prompt
 from alter_echo_response import AlterEchoResponse
@@ -24,6 +26,9 @@ class AlterShell:
 
         # SQLite DB path for embeddings.
         self.db_path = str(get_memory_db_path())
+        default_db = get_memory_db_path()
+        env_override = os.getenv("MEMORY_DB")
+        self.db_path = str(Path(env_override).expanduser()) if env_override else str(default_db)
         init_db(self.db_path)
 
         # Shared LLM instance loaded in background

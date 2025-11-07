@@ -5,6 +5,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict
 import json
+"""Theme loading + normalisation helpers for the Alter/Ego GUI."""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Dict
+
+APP_DIR = Path(__file__).resolve().parent.parent
+THEME_DIR = Path(os.getenv("THEME_DIR") or (APP_DIR / "themes"))
 
 BUILTIN_THEMES: Dict[str, Dict] = {
     "dark": {
@@ -46,6 +57,9 @@ BUILTIN_THEMES: Dict[str, Dict] = {
 def _coerce_theme_from_tokens(name: str, tokens: Dict) -> Dict:
     def tok(key: str, default):
         return tokens.get(key, default)
+def _coerce_theme_from_tokens(name: str, tokens: dict) -> dict:
+    def tok(k, default):
+        return tokens.get(k, default)
 
     bg = tok("background", "#1f1f2e")
     text_bg = tok("panel", tok("background-2", "#2e2e3f"))
@@ -97,6 +111,21 @@ def _normalize_theme_json(name: str, data: Dict) -> Dict | None:
         return _coerce_theme_from_tokens(
             data.get("name", name), data["tokens"]
         )
+def _normalize_theme_json(name: str, data: dict) -> dict | None:
+    if "eden_themes" in data and isinstance(data["eden_themes"], list) and data["eden_themes"]:
+        default_name = data.get("default_palette")
+        chosen = None
+        if default_name:
+            for t in data["eden_themes"]:
+                if t.get("name") == default_name:
+                    chosen = t
+                    break
+        if not chosen:
+            chosen = data["eden_themes"][0]
+        return _coerce_theme_from_tokens(chosen.get("name", name), chosen.get("tokens", {}))
+
+    if "tokens" in data and isinstance(data["tokens"], dict):
+        return _coerce_theme_from_tokens(data.get("name", name), data["tokens"])
 
     keys = {"bg", "text_bg", "text_fg", "user_fg", "alter_fg", "entry_bg", "entry_fg"}
     if any(k in data for k in keys):
@@ -130,3 +159,21 @@ def load_json_themes(theme_dir: Path) -> Dict[str, Dict]:
 
 
 __all__ = ["BUILTIN_THEMES", "load_json_themes"]
+import logging
+
+def load_json_themes(theme_dir: Path) -> Dict[str, Dict]:
+    themes: Dict[str, Dict] = {}
+    if not theme_dir.exists():
+        return themes
+    for p in sorted(theme_dir.glob("*.json")):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            if norm := _normalize_theme_json(p.stem, data):
+                themes[p.stem] = norm
+        except Exception as e:
+            logging.error(f"Failed to load theme file '{p}': {e}")
+            continue
+    return themes
+
+
+__all__ = ["BUILTIN_THEMES", "load_json_themes", "THEME_DIR"]

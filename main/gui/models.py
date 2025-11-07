@@ -1,4 +1,5 @@
 """Model discovery helpers for the Alter/Ego GUI."""
+"""Helpers for discovering GPT4All model folders used by the GUI."""
 
 from __future__ import annotations
 
@@ -33,3 +34,24 @@ def current_selection(models_dir: Path) -> Tuple[Path, Optional[str]]:
 
 
 __all__ = ["resolve_models_dir", "list_models", "current_selection"]
+
+from configuration import get_models_dir
+
+
+def default_models_dir() -> Path:
+    path = get_models_dir()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+import logging
+
+def list_models(models_dir: Path) -> list[str]:
+    try:
+        return sorted(p.name for p in models_dir.glob("*.gguf"))
+    except Exception as e:
+        logging.exception("Failed to list models in directory: %s", models_dir)
+        return []
+
+
+__all__ = ["default_models_dir", "list_models"]
