@@ -93,8 +93,7 @@ LEGACY_THEME_DIRS = [APP_DIR.parent / "themes"]
 
 
 def _resolve_theme_dir() -> Path:
-    env_dir = os.getenv("THEME_DIR")
-    if env_dir:
+    if env_dir := os.getenv("THEME_DIR"):
         env_path = Path(env_dir)
         if env_path.exists() and env_path.is_dir():
             return env_path
