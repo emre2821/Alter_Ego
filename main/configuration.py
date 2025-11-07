@@ -35,9 +35,7 @@ def _expand(path: str) -> Path:
     """
 
     candidate = Path(os.path.expandvars(os.path.expanduser(path)))
-    if candidate.is_absolute():
-        return candidate
-    return APP_ROOT / candidate
+    return candidate if candidate.is_absolute() else APP_ROOT / candidate
 
 
 @lru_cache(maxsize=1)
