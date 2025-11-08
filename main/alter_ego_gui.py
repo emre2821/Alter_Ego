@@ -105,7 +105,7 @@ class AlterEgoGUI(tk.Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
-        self.text_area = scrolledtext.ScrolledText(self, wrap=tk.WORD, state=tk.NORMAL)
+        self.text_area = scrolledtext.ScrolledText(self, wrap=tk.WORD, state=tk.DISABLED)
         self.text_area.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
 
         entry_frame = tk.Frame(self)
@@ -113,7 +113,12 @@ class AlterEgoGUI(tk.Tk):
         entry_frame.columnconfigure(0, weight=1)
 
         self.entry_var = tk.StringVar()
-        self.entry = tk.Entry(entry_frame, textvariable=self.entry_var)
+        self.entry = tk.Entry(
+            entry_frame,
+            textvariable=self.entry_var,
+            relief="flat",
+            borderwidth=0,
+        )
         self.entry.grid(row=0, column=0, sticky="ew")
         self.entry.bind("<Return>", self._on_send)
 
@@ -136,11 +141,11 @@ class AlterEgoGUI(tk.Tk):
             theme_menu.add_command(label=name, command=lambda n=name: self._apply_theme(n))
         menu_bar.add_cascade(label="Themes", menu=theme_menu)
 
+        self.model_menu_label = tk.StringVar()
+        self._update_model_menu_label()
         model_menu = tk.Menu(menu_bar, tearoff=0)
-        model_menu.add_command(label="Choose model directory…", command=self._pick_model_dir)
-        model_menu.add_separator()
         self.model_menu = model_menu
-        menu_bar.add_cascade(label="Models", menu=model_menu)
+        menu_bar.add_cascade(labelvariable=self.model_menu_label, menu=model_menu)
 
         persona_menu = tk.Menu(menu_bar, tearoff=0)
         persona_menu.add_command(label="Choose persona file…", command=self._pick_persona_file)
@@ -187,24 +192,43 @@ class AlterEgoGUI(tk.Tk):
 
     # ------------------------------------------------------------------
     def _refresh_models_menu(self) -> None:
-        self.model_menu.delete(2, tk.END)
+        self.model_menu.delete(0, tk.END)
+        self.model_menu.add_command(label="Choose model directory…", command=self._pick_model_dir)
+        self.model_menu.add_separator()
+
         self.models = list_models(self.models_dir)
         if not self.models:
             self.model_menu.add_command(label="No models found", state=tk.DISABLED)
+        else:
+            for name in self.models:
+                def _select(n=name):
+                    self._set_model_selection(n)
+
+                label = f"{name}"
+                if name == self.current_model:
+                    label = f"✓ {name}"
+                self.model_menu.add_command(label=label, command=_select)
+
+        self.model_menu.add_separator()
+        if self.models_dir:
             self.model_menu.add_command(
                 label="Open models folder",
                 command=lambda: self._open_folder(self.models_dir),
             )
+        else:
+            self.model_menu.add_command(label="Open models folder", state=tk.DISABLED)
+        self._update_model_menu_label()
+
+    # ------------------------------------------------------------------
+    def _update_model_menu_label(self) -> None:
+        if not hasattr(self, "model_menu_label"):
             return
 
-        for name in self.models:
-            def _select(n=name):
-                self._set_model_selection(n)
-
-            label = f"{name}"
-            if name == self.current_model:
-                label = f"✓ {name}"
-            self.model_menu.add_command(label=label, command=_select)
+        if self.models_dir:
+            dir_name = Path(self.models_dir).name or str(self.models_dir)
+            self.model_menu_label.set(f"Models ({dir_name})")
+        else:
+            self.model_menu_label.set("Models (no directory chosen)")
 
     # ------------------------------------------------------------------
     def _set_model_selection(self, model_name: str) -> None:
@@ -265,7 +289,9 @@ class AlterEgoGUI(tk.Tk):
 
     # ------------------------------------------------------------------
     def _append(self, text: str) -> None:
+        self.text_area.configure(state=tk.NORMAL)
         self.text_area.insert(tk.END, text)
+        self.text_area.configure(state=tk.DISABLED)
         self.text_area.see(tk.END)
 
     # ------------------------------------------------------------------
@@ -334,6 +360,8 @@ class AlterEgoGUI(tk.Tk):
             self._insert_banner(
                 "models",
                 (
+                    f"Drop GGUF files into {self.models_dir} to enable GPT4All. "
+                    f"We recommend starting with {STARTER_MODEL}. "
                     f"Drop GGUF files into {self.models_dir} to enable GPT4All. We recommend starting with {STARTER_MODEL}.\n"
                     "Read more: https://github.com/Autumnus-Labs/AlterEgo#starter-model"
                 ),
@@ -342,6 +370,7 @@ class AlterEgoGUI(tk.Tk):
             self._insert_banner(
                 "models",
                 (
+                    f"Consider downloading the starter model {STARTER_MODEL} for the best first-run experience. "
                     f"Consider downloading the starter model {STARTER_MODEL} for the best first-run experience.\n"
                     f"Store it at {starter}."
                 ),
