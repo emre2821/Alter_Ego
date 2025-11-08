@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
+from tkinter import filedialog, messagebox
 
 from alter_shell import AlterShell
 from configuration import get_persona_root
@@ -22,6 +22,13 @@ from gui.models import (
 from gui.prefs import load_gui_config, save_gui_config
 from gui.themes import available_themes, discover_theme_dir
 from gui.tts import shutdown as shutdown_tts, speak as tts_speak, start as start_tts
+from gui.ui_helpers import (
+    BannerManager,
+    ConversationPane,
+    EntryPanel,
+    MenuBuilder,
+    StatusBar,
+)
 from persona_fronting import PersonaFronting
 
 os.environ.setdefault("GPT4ALL_NO_CUDA", "1")
@@ -85,8 +92,7 @@ class AlterEgoGUI(tk.Tk):
         self.themes = available_themes(self.theme_dir)
 
         self.models_dir = resolve_models_dir()
-        cfg_models_dir = self.cfg.get("model_dir")
-        if cfg_models_dir:
+        if cfg_models_dir := self.cfg.get("model_dir"):
             candidate = Path(cfg_models_dir)
             if candidate.exists():
                 self.models_dir = candidate
@@ -105,6 +111,12 @@ class AlterEgoGUI(tk.Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
+        self.conversation = ConversationPane(self)
+        self.conversation.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+
+        self.entry_panel = EntryPanel(self)
+        self.entry_panel.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 12))
+        self.entry_panel.bind_send(self._on_send)
         self.text_area = scrolledtext.ScrolledText(self, wrap=tk.WORD, state=tk.DISABLED)
         self.text_area.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
 
@@ -122,9 +134,27 @@ class AlterEgoGUI(tk.Tk):
         self.entry.grid(row=0, column=0, sticky="ew")
         self.entry.bind("<Return>", self._on_send)
 
-        send_button = tk.Button(entry_frame, text="Send", command=self._on_send)
-        send_button.grid(row=0, column=1, padx=(8, 0))
+        self.status_bar = StatusBar(self)
+        self.status_bar.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 12))
 
+        self.menus = MenuBuilder(
+            self,
+            themes=self.themes,
+            on_theme_selected=self._apply_theme,
+            on_choose_model_directory=self._pick_model_dir,
+            on_choose_persona_file=self._pick_persona_file,
+            on_refresh_personas=self._refresh_persona_hint,
+        )
+        self.banner_manager = BannerManager(
+            self.conversation,
+            persona_root_provider=get_persona_root,
+            fronting_active=self.fronting.get_active,
+            models_dir_provider=lambda: self.models_dir,
+            list_models=list_models,
+            starter_model_path=starter_model_path,
+            starter_model_name=STARTER_MODEL,
+        )
+        self.entry_panel.focus_entry()
         self.status_var = tk.StringVar(value="persona: none | model: auto")
         status = tk.Label(self, textvariable=self.status_var, anchor="w")
         status.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 12))
@@ -154,6 +184,7 @@ class AlterEgoGUI(tk.Tk):
 
         self.config(menu=menu_bar)
         self._refresh_models_menu()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     # ------------------------------------------------------------------
     def _apply_theme(self, theme_name: str) -> None:
@@ -172,8 +203,10 @@ class AlterEgoGUI(tk.Tk):
         font_size = theme.get("font_size", 12)
 
         self.configure(bg=bg)
-        self.text_area.configure(bg=text_bg, fg=text_fg, font=(font_family, font_size))
-        self.entry.configure(bg=entry_bg, fg=entry_fg, font=(font_family, font_size))
+        font = (font_family, font_size)
+        self.conversation.apply_theme(background=text_bg, foreground=text_fg, font=font)
+        self.entry_panel.apply_theme(background=entry_bg, foreground=entry_fg, font=font)
+        self.status_bar.apply_theme(background=bg, foreground=text_fg, font=font)
 
     # ------------------------------------------------------------------
     def _restore_model_selection(self) -> None:
@@ -192,6 +225,14 @@ class AlterEgoGUI(tk.Tk):
 
     # ------------------------------------------------------------------
     def _refresh_models_menu(self) -> None:
+        self.models = list_models(self.models_dir)
+        self.menus.models.refresh(
+            models_dir=self.models_dir,
+            models=self.models,
+            current_model=self.current_model,
+            on_select_model=self._set_model_selection,
+            on_open_folder=lambda: self._open_folder(self.models_dir),
+        )
         self.model_menu.delete(0, tk.END)
         self.model_menu.add_command(label="Choose model directory…", command=self._pick_model_dir)
         self.model_menu.add_separator()
@@ -241,9 +282,9 @@ class AlterEgoGUI(tk.Tk):
 
     # ------------------------------------------------------------------
     def _pick_model_dir(self) -> None:
-        selected = filedialog.askdirectory(initialdir=self.models_dir)
-        if selected:
+        if selected := filedialog.askdirectory(initialdir=self.models_dir):
             self.models_dir = Path(selected)
+            self.menus.models.update_label(self.models_dir)
             self.shell.select_model(str(self.models_dir), self.current_model)
             self.cfg["model_dir"] = str(self.models_dir)
             save_gui_config(self.cfg)
@@ -257,8 +298,7 @@ class AlterEgoGUI(tk.Tk):
             ("Persona files", ("*.chaos", "*.mirror.json")),
             ("All files", "*.*"),
         ]
-        path = filedialog.askopenfilename(initialdir=persona_root, filetypes=filetypes)
-        if path:
+        if path := filedialog.askopenfilename(initialdir=persona_root, filetypes=filetypes):
             try:
                 selected = Path(path)
                 persona_name = selected.stem
@@ -270,7 +310,7 @@ class AlterEgoGUI(tk.Tk):
 
     # ------------------------------------------------------------------
     def _refresh_persona_hint(self) -> None:
-        self._insert_persona_hint()
+        self.banner_manager.insert_persona_hint()
 
     # ------------------------------------------------------------------
     def _open_folder(self, path: Path) -> None:
@@ -285,10 +325,11 @@ class AlterEgoGUI(tk.Tk):
     def _update_status(self) -> None:
         persona = self.fronting.get_active() or "none"
         model = self.current_model or "auto"
-        self.status_var.set(f"persona: {persona} | model: {model}")
+        self.status_bar.update(persona, model)
 
     # ------------------------------------------------------------------
     def _append(self, text: str) -> None:
+        self.conversation.append(text)
         self.text_area.configure(state=tk.NORMAL)
         self.text_area.insert(tk.END, text)
         self.text_area.configure(state=tk.DISABLED)
@@ -296,10 +337,10 @@ class AlterEgoGUI(tk.Tk):
 
     # ------------------------------------------------------------------
     def _on_send(self, event=None) -> None:
-        message = self.entry_var.get().strip()
+        message = self.entry_panel.get_message()
         if not message:
             return
-        self.entry_var.set("")
+        self.entry_panel.clear()
         self._append(f"You: {message}\n")
 
         try:
@@ -317,12 +358,8 @@ class AlterEgoGUI(tk.Tk):
         tts_speak(response)
 
     # ------------------------------------------------------------------
-    def _insert_banner(self, label: str, body: str) -> None:
-        banner = f"[{label}] {body}\n"
-        self._append(banner)
-
-    # ------------------------------------------------------------------
     def _insert_welcome_guidance(self) -> None:
+        self.banner_manager.insert_welcome()
         self._insert_banner(
             "welcome",
             "Thank you for trusting Alter/Ego. The README hosts setup notes if you ever feel lost.",
