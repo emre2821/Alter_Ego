@@ -260,8 +260,10 @@ class AlterEgoGUI(tk.Tk):
         path = filedialog.askopenfilename(initialdir=persona_root, filetypes=filetypes)
         if path:
             try:
-                self.fronting.front(Path(path))
-                self._append(f"[persona] Fronting {Path(path).stem}\n")
+                selected = Path(path)
+                persona_name = selected.stem
+                self.fronting.front(persona_name)
+                self._append(f"[persona] Fronting {persona_name}\n")
             except Exception as exc:
                 messagebox.showerror("Persona error", str(exc))
         self._update_status()
@@ -299,7 +301,18 @@ class AlterEgoGUI(tk.Tk):
             return
         self.entry_var.set("")
         self._append(f"You: {message}\n")
-        response = self.shell.interact(message)
+
+        try:
+            response = self.shell.interact(message)
+        except Exception as exc:
+            logging.exception("shell.interact failed")
+            self._append(
+                "[error] Something went wrong while talking to the runtime.\n"
+            )
+            self._append(f"{exc}\n")
+            self._append("Check the logs folder for full tracebacks.\n\n")
+            return
+
         self._append(f"Alter/Ego: {response}\n\n")
         tts_speak(response)
 
@@ -331,7 +344,7 @@ class AlterEgoGUI(tk.Tk):
             self._insert_banner(
                 "notice",
                 (
-                    f"No personas found in {persona_root}. Drop `.chaos` or `.mirror.json` files there, or read the persona guide: "
+                    f"No personas found in {persona_root}. Drop `.chaos` or `.mirror.json` files there, or read the persona guide:\n"
                     "https://github.com/Autumnus-Labs/AlterEgo#persona-simulation"
                 ),
             )
@@ -349,6 +362,7 @@ class AlterEgoGUI(tk.Tk):
                 (
                     f"Drop GGUF files into {self.models_dir} to enable GPT4All. "
                     f"We recommend starting with {STARTER_MODEL}. "
+                    f"Drop GGUF files into {self.models_dir} to enable GPT4All. We recommend starting with {STARTER_MODEL}.\n"
                     "Read more: https://github.com/Autumnus-Labs/AlterEgo#starter-model"
                 ),
             )
@@ -357,6 +371,7 @@ class AlterEgoGUI(tk.Tk):
                 "models",
                 (
                     f"Consider downloading the starter model {STARTER_MODEL} for the best first-run experience. "
+                    f"Consider downloading the starter model {STARTER_MODEL} for the best first-run experience.\n"
                     f"Store it at {starter}."
                 ),
             )
