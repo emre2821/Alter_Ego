@@ -84,12 +84,16 @@ def _normalize_theme_json(name: str, data: object) -> Dict[str, object] | None:
         log.warning("theme %s is not a JSON object; skipping", name)
         return None
 
+    base = BUILTIN_THEMES.get(name, {})
+    merged = dict(base)
+    merged.update(data)
+
     required = {"bg", "text_bg", "text_fg", "user_fg", "alter_fg"}
-    if missing := required - data.keys():
+    if missing := required - merged.keys():
         log.warning("theme %s missing keys: %s", name, ", ".join(sorted(missing)))
         return None
 
-    normalized = dict(data)
+    normalized = dict(merged)
     normalized.setdefault("entry_bg", normalized["text_bg"])
     normalized.setdefault("entry_fg", normalized["text_fg"])
     normalized.setdefault("font_family", "Segoe UI")
@@ -120,7 +124,7 @@ def available_themes(theme_dir: Path) -> Dict[str, Dict[str, object]]:
     """Return merged builtin + JSON themes."""
 
     merged = dict(BUILTIN_THEMES)
-    merged.update(load_json_themes(theme_dir))
+    merged |= load_json_themes(theme_dir)
     return merged
 
 

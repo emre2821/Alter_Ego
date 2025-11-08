@@ -10,10 +10,11 @@ source of truth.
 
 from __future__ import annotations
 
+import logging
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
-import os
 
 try:  # YAML is an optional dependency for tests/CI environments
     import yaml  # type: ignore
@@ -29,13 +30,14 @@ CONFIG_FILE = APP_ROOT / "alter_ego_config.yaml"
 LEGACY_PERSONA_ROOT = Path(r"C:\EdenOS_Origin\all_daemons")
 
 
+log = logging.getLogger(__name__)
+
+
 def _expand(path: str | os.PathLike[str]) -> Path:
     """Expand ``path`` relative to :data:`APP_ROOT` when required."""
 
     expanded = Path(os.path.expandvars(os.path.expanduser(str(path))))
-    if expanded.is_absolute():
-        return expanded
-    return (APP_ROOT / expanded).resolve()
+    return expanded if expanded.is_absolute() else (APP_ROOT / expanded).resolve()
 
 
 def _env(name: str) -> Optional[str]:
@@ -55,7 +57,8 @@ def load_configuration() -> Dict[str, Any]:
 
     try:
         loaded = yaml.safe_load(CONFIG_FILE.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as exc:
+        log.warning("Failed to parse %s: %s", CONFIG_FILE, exc)
         return {}
 
     return loaded or {}

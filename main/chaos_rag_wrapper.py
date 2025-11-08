@@ -50,18 +50,18 @@ def _resolve_model_dir() -> Path:
 
 
 def _discover_model_name(models_dir: Path) -> str:
-    env_name = os.getenv("GPT4ALL_MODEL") or get_model_name()
-    if env_name:
+    if env_name := os.getenv("GPT4ALL_MODEL") or get_model_name():
         candidate = models_dir / env_name
         if candidate.exists():
             return env_name
 
     ggufs = sorted(models_dir.glob("*.gguf"))
-    if not ggufs:
-        raise FileNotFoundError(
-            f"No .gguf models found in {models_dir}. Set GPT4ALL_MODEL or drop a model there."
-        )
-    return ggufs[0].name
+    if ggufs:
+        return ggufs[0].name
+
+    raise FileNotFoundError(
+        f"No .gguf models found in {models_dir}. Set GPT4ALL_MODEL or drop a model there."
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -12,8 +12,9 @@ python alter_ego_computer.py init
 # Optional: ingest a starter folder of notes or echoes.
 # python alter_ego_computer.py ingest "C:\Path\To\Your\Memories"
 
-# Launch the GUI. Runtime paths now resolve via configuration.py, so
-# override them by editing alter_ego_config.yaml or exporting env vars
-# like PERSONA_ROOT / GPT4ALL_MODEL_DIR only when you need to deviate
-# from the defaults documented in the README.
+# Launch the GUI via the CLI entrypoint. Runtime paths resolve through
+# configuration.py, so prefer editing alter_ego_config.yaml. Environment
+# variables such as PERSONA_ROOT or GPT4ALL_MODEL_DIR remain available
+# for one-off overrides when you need to diverge from the documented
+# defaults.
 python alter_ego_computer.py launch

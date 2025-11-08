@@ -6,6 +6,7 @@ import logging
 import os
 import queue
 import threading
+import time
 from typing import Optional
 
 try:
@@ -67,6 +68,9 @@ def shutdown(delay: float = 0.1) -> None:
             _TTS_QUEUE.put(None)
         except Exception:
             pass
+    if _TTS_THREAD is not None and _TTS_THREAD.is_alive():
+        time.sleep(delay)
+        _TTS_THREAD.join(timeout=2.0)
     _TTS_QUEUE = None
     _TTS_THREAD = None
 
