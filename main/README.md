@@ -102,18 +102,6 @@ Each `.json` file should define keys like `bg`, `text_bg`, `text_fg`, `user_fg`,
 If no JSON themes exist at launch, the GUI logs a notice and falls back to its built-in styles such as `eden`, `dark`, and `light`.
 You can override the palette for a single session by setting `ALTER_EGO_THEME` or passing `--theme` to `python alter_ego_computer.py launch`.
 
-### Default data folders
-
-The runtime now centralises its filesystem locations through `alter_ego_config.yaml` so every component agrees on the same paths:
-
-| Purpose | Default path | Override |
-| --- | --- | --- |
-| Personas | `main/personas/` | `PERSONA_ROOT` or `persona_root` in `alter_ego_config.yaml` |
-| GPT4All models | `main/models/` | `GPT4ALL_MODEL_DIR` / `GPT4ALL_MODELS_DIR` or `models_dir` in `alter_ego_config.yaml` |
-| Memory database | `main/alter_ego_memory.db` | `MEMORY_DB` or `db_path`/`memory_db` in `alter_ego_config.yaml` |
-
-The folders under `main/` are created automatically on launch if they do not already exist, so dropping new personas or models is as simple as copying files into those directories.
-
 ---
 
 ---

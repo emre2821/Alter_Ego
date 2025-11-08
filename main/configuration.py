@@ -1,13 +1,11 @@
 """Runtime configuration helpers for Alter/Ego.
 
-This module centralizes discovery of folders and filenames that were
-previously scattered across the GUI and runtime helpers.  The exported
-functions resolve locations based on the shipped ``alter_ego_config.yaml``
-file and allow environment variables to override every setting.
-This module centralises the logic for discovering paths that the
-application relies on. It merges values from ``alter_ego_config.yaml``
-with environment variable overrides so every component reads from the
-same source of truth.
+This module centralises discovery of the folders and files Alter/Ego
+relies on at runtime.  Callers no longer need to duplicate logic to
+resolve where personas, GPT4All models, or the memory database live –
+``configuration`` reads ``alter_ego_config.yaml`` (when present) and then
+applies environment variable overrides so every component shares a single
+source of truth.
 """
 
 from __future__ import annotations
@@ -17,119 +15,93 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 import os
 
-try:
-    import yaml
-except Exception:  # pragma: no cover - yaml is an optional dependency
-    yaml = None
+try:  # YAML is an optional dependency for tests/CI environments
+    import yaml  # type: ignore
+except Exception:  # pragma: no cover - handled by returning defaults
+    yaml = None  # type: ignore
 
 APP_ROOT = Path(__file__).resolve().parent
 CONFIG_FILE = APP_ROOT / "alter_ego_config.yaml"
 
+# Legacy fallback used by early Windows builds that shipped personas in a
+# fixed location on C:\.  We still honour it so existing installations do
+# not break when updating.
+LEGACY_PERSONA_ROOT = Path(r"C:\EdenOS_Origin\all_daemons")
 
-def _expand(path: str) -> Path:
-    """Return ``path`` expanded relative to :data:`APP_ROOT`.
 
-    ``alter_ego_config.yaml`` historically stored relative paths.  We keep
-    that behaviour by treating entries as relative to the repository root
-    unless they are already absolute.
-    """
+def _expand(path: str | os.PathLike[str]) -> Path:
+    """Expand ``path`` relative to :data:`APP_ROOT` when required."""
 
-    candidate = Path(os.path.expandvars(os.path.expanduser(path)))
-    return candidate if candidate.is_absolute() else APP_ROOT / candidate
+    expanded = Path(os.path.expandvars(os.path.expanduser(str(path))))
+    if expanded.is_absolute():
+        return expanded
+    return (APP_ROOT / expanded).resolve()
+
+
+def _env(name: str) -> Optional[str]:
+    value = os.getenv(name)
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 @lru_cache(maxsize=1)
 def load_configuration() -> Dict[str, Any]:
-    """Return the merged configuration dictionary.
-
-    The YAML file is optional – an empty dict is returned when parsing
-    fails.  Environment variables are *not* applied at this layer; each
-    accessor performs its own override logic so the original contents stay
-    visible to callers that need raw values.
-    """
+    """Return the parsed YAML configuration as a dictionary."""
 
     if not CONFIG_FILE.exists() or yaml is None:
         return {}
 
-import os
-from functools import lru_cache
-from pathlib import Path
-from typing import Dict
-
-import yaml
-
-APP_DIR = Path(__file__).resolve().parent
-CONFIG_FILE = APP_DIR / "alter_ego_config.yaml"
-
-DEFAULT_PATHS = {
-    "persona_root": APP_DIR / "personas",
-    "models_dir": APP_DIR / "models",
-    "memory_db": APP_DIR / "alter_ego_memory.db",
-}
-
-ENV_OVERRIDES = {
-    "persona_root": ("PERSONA_ROOT",),
-    "models_dir": ("GPT4ALL_MODEL_DIR", "GPT4ALL_MODELS_DIR"),
-    "memory_db": ("MEMORY_DB",),
-}
-
-
-def _read_yaml_config() -> Dict:
-    if not CONFIG_FILE.exists():
-        return {}
     try:
-        data = yaml.safe_load(CONFIG_FILE.read_text(encoding="utf-8"))
+        loaded = yaml.safe_load(CONFIG_FILE.read_text(encoding="utf-8"))
     except Exception:
         return {}
-    return data or {}
+
+    return loaded or {}
 
 
-def _env(name: str) -> Optional[str]:
-    return value.strip() or None if (value := os.getenv(name)) else None
+def _path_from_config(*keys: str) -> Optional[Path]:
+    cfg = load_configuration()
+    for key in keys:
+        value = cfg.get(key)
+        if isinstance(value, str) and value.strip():
+            return _expand(value)
+    return None
 
 
-def get_persona_root() -> Path:
+def get_persona_root(create: bool = True) -> Path:
     """Return the directory that stores persona definitions."""
 
-    env_override = _env("PERSONA_ROOT")
-    if env_override:
-        return _expand(env_override)
+    if env := _env("PERSONA_ROOT"):
+        return _expand(env)
 
-    cfg = load_configuration()
-    cfg_path = cfg.get("persona_root")
-    if isinstance(cfg_path, str) and cfg_path:
-        return _expand(cfg_path)
+    if (cfg_path := _path_from_config("persona_root", "persona_dir")) is not None:
+        return cfg_path
 
-    # Legacy Lyss path used by early installations.
-    legacy = Path(r"C:\EdenOS_Origin\all_daemons")
-    if legacy.exists():
-        return legacy
+    if LEGACY_PERSONA_ROOT.exists():
+        return LEGACY_PERSONA_ROOT
 
-    return APP_ROOT / "personas"
+    fallback = APP_ROOT / "personas"
+    if create:
+        fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
 
 
 def get_models_dir(create: bool = True) -> Path:
-    """Return the GPT4All model directory.
-
-    ``create`` controls whether the fallback local folder is created when it
-    does not already exist.
-    """
+    """Return the GPT4All model directory."""
 
     for env in ("GPT4ALL_MODEL_DIR", "GPT4ALL_MODELS_DIR"):
-        env_override = _env(env)
-        if env_override and Path(env_override).expanduser().exists():
-            return Path(env_override).expanduser()
+        if override := _env(env):
+            path = _expand(override)
+            if path.exists():
+                return path
 
-    cfg = load_configuration()
-    cfg_path = cfg.get("models_dir")
-    if isinstance(cfg_path, str) and cfg_path:
-        expanded = _expand(cfg_path)
-        if expanded.exists():
-            return expanded
+    if (cfg_path := _path_from_config("models_dir", "model_dir")) is not None and cfg_path.exists():
+        return cfg_path
 
-    localappdata = _env("LOCALAPPDATA")
-    if localappdata:
-        candidate = Path(localappdata) / "nomic.ai" / "GPT4All"
+    if local := _env("LOCALAPPDATA"):
+        candidate = Path(local) / "nomic.ai" / "GPT4All"
         if candidate.exists():
             return candidate
 
@@ -146,111 +118,59 @@ def get_models_dir(create: bool = True) -> Path:
 def get_model_name(default: Optional[str] = None) -> Optional[str]:
     """Return the preferred GPT4All model filename, if one is configured."""
 
-    env_name = _env("GPT4ALL_MODEL")
-    if env_name:
-        return env_name
+    if env := _env("GPT4ALL_MODEL"):
+        return env
 
     cfg = load_configuration()
-    name = cfg.get("llm_model_name")
-    if isinstance(name, str) and name:
-        return name
+    for key in ("llm_model_name", "model", "model_name"):
+        value = cfg.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
 
     return default
 
 
 def get_memory_db_path() -> Path:
-    """Return the SQLite database used for memory embeddings."""
+    """Return the SQLite database path for semantic memory."""
 
-    if env_override := _env("MEMORY_DB"):
-        return _expand(env_override)
+    if env := _env("MEMORY_DB"):
+        return _expand(env)
 
-    cfg = load_configuration()
-    cfg_path = cfg.get("db_path") or cfg.get("memory_db")
-    if isinstance(cfg_path, str) and cfg_path:
-        return _expand(cfg_path)
+    if (cfg_path := _path_from_config("memory_db", "db_path")) is not None:
+        return cfg_path
 
     return APP_ROOT / "alter_ego_memory.db"
 
 
 def get_log_path() -> Path:
-    """Return the default autosave log path."""
+    """Return the autosave log file path."""
 
-    if env_override := _env("ALTER_EGO_LOG_PATH"):
-        return _expand(env_override)
+    if env := _env("ALTER_EGO_LOG_PATH"):
+        return _expand(env)
 
-    cfg = load_configuration()
-    cfg_path = cfg.get("log_path")
-    if isinstance(cfg_path, str) and cfg_path:
-        return _expand(cfg_path)
+    if (cfg_path := _path_from_config("log_path", "autosave_log")) is not None:
+        return cfg_path
 
     return APP_ROOT / "chaos_echo_log.chaos"
 
 
 def describe_data_locations() -> Dict[str, Path]:
-    """Return a snapshot of the important runtime paths."""
+    """Return a mapping of important runtime paths for documentation."""
 
     return {
-        "personas": get_persona_root(),
+        "personas": get_persona_root(create=False),
         "models": get_models_dir(create=False),
         "memory_db": get_memory_db_path(),
         "autosave_log": get_log_path(),
     }
-def _resolve_path(value: str | Path | None) -> Path | None:
-    if value in (None, ""):
-        return None
-    path = Path(value)
-    if not path.is_absolute():
-        path = (CONFIG_FILE.parent / path).resolve()
-    return path
-
-
-@lru_cache()
-def get_runtime_paths() -> Dict[str, Path]:
-    """Return resolved runtime paths with config + env precedence."""
-
-    cfg = _read_yaml_config()
-    resolved = {}
-    for key, default in DEFAULT_PATHS.items():
-        candidate = None
-
-        # 1) environment variable override
-        env_vars = ENV_OVERRIDES.get(key, ())
-        for env_var in env_vars:
-            candidate = _resolve_path(os.getenv(env_var))
-            if candidate is not None:
-                break
-
-        # 2) configuration file entry
-        if candidate is None:
-            cfg_value = cfg.get(key) or cfg.get("paths", {}).get(key)
-            if cfg_value is None and key == "memory_db":
-                cfg_value = cfg.get("db_path")
-            candidate = _resolve_path(cfg_value)
-
-        # 3) fallback default
-        if candidate is None:
-            candidate = default
-
-        resolved[key] = candidate
-
-    return resolved
-
-
-def get_persona_root() -> Path:
-    return get_runtime_paths()["persona_root"]
-
-
-def get_models_dir() -> Path:
-    return get_runtime_paths()["models_dir"]
-
-
-def get_memory_db_path() -> Path:
-    return get_runtime_paths()["memory_db"]
 
 
 __all__ = [
-    "get_persona_root",
-    "get_models_dir",
+    "describe_data_locations",
+    "get_log_path",
     "get_memory_db_path",
-    "get_runtime_paths",
+    "get_model_name",
+    "get_models_dir",
+    "get_persona_root",
+    "load_configuration",
 ]
