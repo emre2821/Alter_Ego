@@ -1,9 +1,7 @@
-"""Alter/Ego GUI frontend with modular helpers."""
+"""Alter/Ego GUI frontend with modular helpers and first-run guidance."""
 
 from __future__ import annotations
 
-import os
-import sys
 import datetime
 import logging
 import os
@@ -12,34 +10,21 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 
-os.environ.setdefault("GPT4ALL_NO_CUDA", "1")
-
-try:
-    from prismari import Prismari  # type: ignore
-except Exception:
-    Prismari = None
-
 from alter_shell import AlterShell
-from persona_fronting import PersonaFronting
-from configuration import get_model_name, get_persona_root
-from gui.prefs import load_gui_config, save_gui_config
-from gui.themes import BUILTIN_THEMES, load_json_themes
-from gui.models import list_models, resolve_models_dir
-from gui.tts import shutdown as shutdown_tts, speak as tts_speak, start as start_tts
-# Optional Prismari (palette muse)
-try:
-    from prismari import Prismari  # provides default_comments + helpers
-except Exception:
-    Prismari = None  # noqa: N816
-
-# Eden runtime imports
-from alter_shell import AlterShell
-from persona_fronting import PersonaFronting
 from configuration import get_persona_root
-from gui.models import default_models_dir, list_models
+from gui.models import (
+    STARTER_MODEL,
+    current_selection,
+    list_models,
+    resolve_models_dir,
+    starter_model_path,
+)
 from gui.prefs import load_gui_config, save_gui_config
-from gui.themes import BUILTIN_THEMES, THEME_DIR, load_json_themes
-from gui.tts import speak as tts_speak, start_tts_loop, shutdown_tts
+from gui.themes import available_themes, discover_theme_dir
+from gui.tts import shutdown as shutdown_tts, speak as tts_speak, start as start_tts
+from persona_fronting import PersonaFronting
+
+os.environ.setdefault("GPT4ALL_NO_CUDA", "1")
 
 APP_DIR = Path(__file__).resolve().parent
 LOG_DIR = APP_DIR / "logs"
@@ -85,678 +70,286 @@ _syslog_fp = open(LOG_FILE, "a", encoding="utf-8")
 sys.stdout = _Tee(sys.stdout, _syslog_fp)
 sys.stderr = _Tee(sys.stderr, _syslog_fp)
 
-THEME_DIR = Path(os.getenv("THEME_DIR") or (APP_DIR / "themes"))
-WELCOME_MODEL = "DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf"
 
+class AlterEgoGUI(tk.Tk):
+    def __init__(self) -> None:
+        super().__init__()
+        self.title("Alter/Ego")
 
-# =========================
-# Config / Themes
-# =========================
-CONFIG_DIR = APP_DIR
-CONFIG_PATH = CONFIG_DIR / "gui_config.json"
-LEGACY_CONFIG_PATHS = [
-    APP_DIR / "config" / "gui_config.json",
-    APP_DIR.parent / "gui_config.json",
-    APP_DIR.parent / "config" / "gui_config.json",
-]
-LEGACY_THEME_DIRS = [APP_DIR.parent / "themes"]
-
-
-def _resolve_theme_dir() -> Path:
-    if env_dir := os.getenv("THEME_DIR"):
-        env_path = Path(env_dir)
-        if env_path.exists() and env_path.is_dir():
-            return env_path
-
-    candidate = APP_DIR / "themes"
-    if candidate.exists():
-        return candidate
-
-    for legacy in LEGACY_THEME_DIRS:
-        if legacy.exists():
-            log.warning(
-                "Using legacy theme directory at %s; move themes to %s or set THEME_DIR.",
-                legacy,
-                candidate,
-            )
-            return legacy
-
-    return candidate
-
-
-def _migrate_legacy_config() -> None:
-    if CONFIG_PATH.exists():
-        return
-
-    for legacy_path in LEGACY_CONFIG_PATHS:
-        if not legacy_path.exists():
-            continue
-        try:
-            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-            CONFIG_PATH.write_text(legacy_path.read_text(encoding="utf-8"), encoding="utf-8")
-            log.info("Migrated legacy GUI config from %s to %s", legacy_path, CONFIG_PATH)
-            return
-        except Exception as exc:
-            log.warning("Failed to migrate GUI config from %s: %s", legacy_path, exc)
-
-
-# Looks for JSON themes under main/themes or THEME_DIR override
-THEME_DIR = _resolve_theme_dir()
-
-BUILTIN_THEMES: dict[str, dict] = {
-    "dark": {
-        "bg": "#1f1f2e",
-        "text_bg": "#2e2e3f",
-        "text_fg": "#dcdcdc",
-        "user_fg": "#85d6ff",
-        "alter_fg": "#f5b6ff",
-        "entry_bg": "#3c3c50",
-        "entry_fg": "#ffffff",
-        "font_family": "Consolas",
-        "font_size": 11,
-    },
-    "eden": {
-        "bg": "#101820",
-        "text_bg": "#0f2740",
-        "text_fg": "#e0f7fa",
-        "user_fg": "#29b6f6",
-        "alter_fg": "#ff80ab",
-        "entry_bg": "#1c2b36",
-        "entry_fg": "#ffffff",
-        "font_family": "Corbel",
-        "font_size": 18,
-    },
-    "light": {
-        "bg": "#fafafa",
-        "text_bg": "#ffffff",
-        "text_fg": "#222222",
-        "user_fg": "#0044cc",
-        "alter_fg": "#880088",
-        "entry_bg": "#f0f0f0",
-        "entry_fg": "#000000",
-        "font_family": "Segoe UI",
-        "font_size": 12,
-    },
-}
-
-
-def load_gui_config() -> dict:
-    _migrate_legacy_config()
-    cfg = {"theme": "eden", "model": None, "prismari_enabled": True}
-    if CONFIG_PATH.exists():
-        try:
-            if isinstance(loaded := json.loads(CONFIG_PATH.read_text(encoding="utf-8")), dict):
-                cfg |= loaded
-        except Exception as exc:
-            log.warning("Could not read %s: %s", CONFIG_PATH, exc)
-
-    if env_theme := os.getenv("ALTER_EGO_THEME"):
-        cfg["theme"] = env_theme
-
-    return cfg
-
-
-def save_gui_config(cfg: dict) -> None:
-    try:
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-    except Exception as exc:
-        log.warning("Could not write %s: %s", CONFIG_PATH, exc)
-
-
-def _coerce_theme_from_tokens(name: str, tokens: dict) -> dict:
-    def tok(k, default):
-        return tokens.get(k, default)
-
-    bg = tok("background", "#1f1f2e")
-    text_bg = tok("panel", tok("background-2", "#2e2e3f"))
-    text_fg = tok("foreground", "#dcdcdc")
-    entry_bg = tok("input-bg", "#3c3c50")
-    entry_fg = tok("input-fg", "#ffffff")
-    user_fg = tok("accent", "#85d6ff")
-    alter_fg = tok("highlight", "#f5b6ff")
-    font_family = tokens.get("font_family", "Consolas")
-    try:
-        font_size = int(tokens.get("font_size", 11))
-    except Exception:
-        font_size = 11
-
-    return {
-        "bg": bg,
-        "text_bg": text_bg,
-        "text_fg": text_fg,
-        "user_fg": user_fg,
-        "alter_fg": alter_fg,
-        "entry_bg": entry_bg,
-        "entry_fg": entry_fg,
-        "font_family": font_family,
-        "font_size": font_size,
-        "_source": f"tokens:{name}",
-    }
-
-
-def _select_palette_from_collection(data: dict) -> dict | None:
-    palettes = data.get("eden_themes")
-    if not isinstance(palettes, list) or not palettes:
-        return None
-
-    if default_name := data.get("default_palette"):
-        for palette in palettes:
-            if palette.get("name") == default_name:
-                return palette
-
-    return palettes[0]
-
-
-def _extract_tokens_payload(name: str, data: dict) -> tuple[str, dict] | None:
-    tokens = data.get("tokens")
-    if isinstance(tokens, dict):
-        return data.get("name", name), tokens
-    return None
-
-
-def _build_direct_theme(name: str, data: dict) -> dict | None:
-    keys = {"bg", "text_bg", "text_fg", "user_fg", "alter_fg", "entry_bg", "entry_fg"}
-    if all(k not in data for k in keys):
-        return None
-
-    merged = BUILTIN_THEMES["dark"].copy()
-    merged.update(data)
-    merged.setdefault("font_family", "Consolas")
-    merged.setdefault("font_size", 11)
-    merged["_source"] = f"direct:{name}"
-    return merged
-
-
-def _normalize_theme_json(name: str, data: dict) -> dict | None:
-    if palette := _select_palette_from_collection(data):
-        return _coerce_theme_from_tokens(palette.get("name", name), palette.get("tokens", {}))
-
-    if tokens_payload := _extract_tokens_payload(name, data):
-        payload_name, tokens = tokens_payload
-        return _coerce_theme_from_tokens(payload_name, tokens)
-
-    return _build_direct_theme(name, data)
-
-
-def load_json_themes(theme_dir: Path) -> dict[str, dict]:
-    """Return theme definitions discovered under ``theme_dir``.
-
-    The GUI only activates these palettes when the directory contains
-    at least one valid JSON file. When the folder is empty or missing, the
-    caller is expected to fall back to :data:`BUILTIN_THEMES`.
-    """
-
-    themes: dict[str, dict] = {}
-    if not theme_dir.exists():
-        return themes
-    for p in sorted(theme_dir.glob("*.json")):
-        try:
-            if norm := _normalize_theme_json(p.stem, json.loads(p.read_text(encoding="utf-8"))):
-                themes[p.stem] = norm
-        except Exception as exc:
-            log.error("Failed to load theme file '%s': %s", p, exc)
-    return themes
-
-# =========================
-# Model folder utilities
-# =========================
-def _default_models_dir() -> Path:
-    for env in ("GPT4ALL_MODEL_DIR", "GPT4ALL_MODELS_DIR"):
-        d = os.getenv(env)
-        if d and Path(d).exists():
-            return Path(d)
-    lad = os.getenv("LOCALAPPDATA")
-    if lad:
-        p = Path(lad) / "nomic.ai" / "GPT4All"
-        if p.exists():
-            return p
-    p = Path.home() / "AppData" / "Local" / "nomic.ai" / "GPT4All"
-    if p.exists():
-        return p
-    fallback = APP_DIR / "models"
-    fallback.mkdir(parents=True, exist_ok=True)
-    return fallback
-
-
-def _list_models(models_dir: Path) -> list[str]:
-    try:
-        return sorted([p.name for p in models_dir.glob("*.gguf")])
-    except Exception:
-        log.exception("Failed to list models in directory: %s", models_dir)
-        return []
-
-# =========================
-# TTS engine (threaded)
-# =========================
-ENABLE_TTS = os.getenv("ENABLE_TTS", "1") != "0"
-_tts_q: queue.Queue[str] | None = None
-_tts_thread: threading.Thread | None = None
-
-
-def _start_tts_loop():
-    global _tts_q, _tts_thread
-    if not (ENABLE_TTS and pyttsx3 is not None):
-        return
-    _tts_q = queue.Queue()
-
-    def _loop():
-        try:
-            eng = pyttsx3.init()
-            eng.setProperty("rate", 165)
-            eng.setProperty("volume", 0.9)
-            while True:
-                msg = _tts_q.get()
-                if msg is None:  # sentinel for shutdown
-                    break
-                eng.say(msg)
-                eng.runAndWait()
-        except Exception as e:
-            log.warning(f"[tts_warning] {e}")
-
-    _tts_thread = threading.Thread(target=_loop, daemon=True)
-    _tts_thread.start()
-
-
-def _speak(text: str):
-    if _tts_q is not None:
-        _tts_q.put(text)
-
-# =========================
-# GUI
-# =========================
-class AlterEgoGUI:
-    def __init__(self, root: tk.Tk, initial_theme: str | None = None):
-        self.root = root
-        self.root.title("Alter/Ego")
-
-        self.shell = AlterShell()
         self.fronting = PersonaFronting()
+        self.shell = AlterShell()
+        start_tts()
 
         self.cfg = load_gui_config()
-        self.themes = load_json_themes(THEME_DIR)
-        if not self.themes:
-            log.info("No JSON themes found in %s; using built-in themes", THEME_DIR)
-            self.themes = BUILTIN_THEMES.copy()
-
-        self.prismari_enabled = tk.BooleanVar(value=bool(self.cfg.get("prismari_enabled", True)))
-        self.executor_mode = tk.BooleanVar(value=False)
-
-        theme_name = initial_theme or self.cfg.get("theme") or next(iter(self.themes.keys()))
-        self.current_theme_name = theme_name
-        self.current_model = self.cfg.get("model")
+        self.theme_dir = discover_theme_dir()
+        self.themes = available_themes(self.theme_dir)
 
         self.models_dir = resolve_models_dir()
-        self._models_list: list[str] = list_models(self.models_dir)
-        if self.current_model and self.current_model not in self._models_list:
-            self.current_model = None
-        # Models folder + live list
-        self.models_dir = default_models_dir()
-        self._models_list: list[str] = list_models(self.models_dir)
+        cfg_models_dir = self.cfg.get("model_dir")
+        if cfg_models_dir:
+            candidate = Path(cfg_models_dir)
+            if candidate.exists():
+                self.models_dir = candidate
+        self.models = list_models(self.models_dir)
+        self.current_model = None
 
-        self.text_area: scrolledtext.ScrolledText | None = None
-        self.entry: tk.Entry | None = None
+        self._build_ui()
+        self._apply_theme(self.cfg.get("theme", "eden"))
+        self._restore_model_selection()
+        self._insert_welcome_guidance()
+
+    # ------------------------------------------------------------------
+    def _build_ui(self) -> None:
+        self.geometry("960x720")
+
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+
+        self.text_area = scrolledtext.ScrolledText(self, wrap=tk.WORD, state=tk.NORMAL)
+        self.text_area.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+
+        entry_frame = tk.Frame(self)
+        entry_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 12))
+        entry_frame.columnconfigure(0, weight=1)
+
+        self.entry_var = tk.StringVar()
+        self.entry = tk.Entry(entry_frame, textvariable=self.entry_var)
+        self.entry.grid(row=0, column=0, sticky="ew")
+        self.entry.bind("<Return>", self._on_send)
+
+        send_button = tk.Button(entry_frame, text="Send", command=self._on_send)
+        send_button.grid(row=0, column=1, padx=(8, 0))
+
+        self.status_var = tk.StringVar(value="persona: none | model: auto")
+        status = tk.Label(self, textvariable=self.status_var, anchor="w")
+        status.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 12))
 
         self._build_menu()
-        self._apply_theme(self.current_theme_name)
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
-        self._show_welcome_banner()
-        self._show_persona_status()
-        self._show_model_status()
-        self._update_title()
-        # Persona availability banner
-        try:
-            persona_root = os.getenv("PERSONA_ROOT") or (APP_DIR / "personas")
-            pr = Path(persona_root)
-            persona_root = Path(get_persona_root())
-            pr = persona_root
-            count = 0
-            if pr.exists():
-                count = sum(1 for _ in pr.rglob("*.mirror.json")) + sum(1 for _ in pr.rglob("*.chaos"))
-            if count == 0:
-                self.display_text(
-                    (
-                        "[notice] No personas found under "
-                        f"'{persona_root}'. Add persona files to that folder or set PERSONA_ROOT.\n"
-                        "See README → Personas for starter options.\n\n"
-                    ),
-                    "alter",
-                )
-        except Exception as e:
-            self.display_text(f"[notice] Persona check skipped: {e}\n\n", "alter")
+    # ------------------------------------------------------------------
+    def _build_menu(self) -> None:
+        menu_bar = tk.Menu(self)
 
-        # Watcher for model folder changes
-        self.root.after(2000, self._poll_models)
+        theme_menu = tk.Menu(menu_bar, tearoff=0)
+        for name in sorted(self.themes):
+            theme_menu.add_command(label=name, command=lambda n=name: self._apply_theme(n))
+        menu_bar.add_cascade(label="Themes", menu=theme_menu)
 
-        # If no model selected, prompt kindly
-        if not self.current_model:
-            self.display_text("[notice] No model selected. Open Models → pick a .gguf to load.\n\n", "alter")
-            guide = (
-                "[welcome] No voice selected yet. Open Models → pick a .gguf file once you've downloaded one.\n"
-                "Starter suggestion: DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf (see README).\n"
-                f"Drop it into {self.models_dir} or choose another folder from the Models menu.\n\n"
-            )
-            self.display_text(guide, "alter")
-        elif self.current_model not in self._models_list:
-            self.display_text(
-                (
-                    "[notice] Previously selected model is missing. "
-                    "Check the Models folder or pick a new file.\n\n"
-                ),
-                "alter",
-            )
+        model_menu = tk.Menu(menu_bar, tearoff=0)
+        model_menu.add_command(label="Choose model directory…", command=self._pick_model_dir)
+        model_menu.add_separator()
+        self.model_menu = model_menu
+        menu_bar.add_cascade(label="Models", menu=model_menu)
 
-        if not self._models_list:
-            self.display_text(
-                (
-                    "[guide] No .gguf files detected yet. Use the README link to download a model "
-                    "[guide] No .gguf files detected yet. Use the link in README to download a model "
-                    "and place it inside the models directory.\n\n"
-                ),
-                "alter",
-            )
+        persona_menu = tk.Menu(menu_bar, tearoff=0)
+        persona_menu.add_command(label="Choose persona file…", command=self._pick_persona_file)
+        persona_menu.add_command(label="Refresh personas", command=self._refresh_persona_hint)
+        menu_bar.add_cascade(label="Personas", menu=persona_menu)
 
-        self.root.after(2000, self._poll_models)
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.config(menu=menu_bar)
+        self._refresh_models_menu()
 
-        if self.current_model and (self.models_dir / self.current_model).exists():
-            try:
-                self.shell.select_model(str(self.models_dir), self.current_model)
-            except Exception as exc:
-                self.display_text(f"[notice] Could not restore model '{self.current_model}': {exc}\n\n", "alter")
-
-    def _build_menu(self):
-        menu = tk.Menu(self.root)
-
-        theme_menu = tk.Menu(menu, tearoff=0)
-        for name in sorted(self.themes.keys()):
-            theme_menu.add_command(label=name, command=lambda n=name: self.set_theme(n))
-        theme_menu.add_separator()
-        theme_menu.add_command(label="Reload themes", command=self._reload_themes)
-        menu.add_cascade(label="Themes", menu=theme_menu)
-
-        self._model_menu = tk.Menu(menu, tearoff=0)
-        self._rebuild_model_menu()
-        menu.add_cascade(label="Models", menu=self._model_menu)
-
-        settings_menu = tk.Menu(menu, tearoff=0)
-        settings_menu.add_checkbutton(
-            label="Enable Prismari commentary",
-            variable=self.prismari_enabled,
-            command=self._save_prefs_only,
-        )
-        settings_menu.add_checkbutton(
-            label="Executor mode (concise)",
-            variable=self.executor_mode,
-        )
-        menu.add_cascade(label="Settings", menu=settings_menu)
-
-        self.root.config(menu=menu)
-
-    def _apply_theme(self, theme_name: str):
+    # ------------------------------------------------------------------
+    def _apply_theme(self, theme_name: str) -> None:
         theme = self.themes.get(theme_name)
-        if not theme:
-            messagebox.showwarning("Theme not found", f"Theme '{theme_name}' not found. Falling back to 'eden'.")
-            theme = BUILTIN_THEMES["eden"]
-            theme_name = "eden"
-
-        self.current_theme_name = theme_name
+        if theme is None:
+            theme = self.themes.get("eden", next(iter(self.themes.values())))
         self.cfg["theme"] = theme_name
         save_gui_config(self.cfg)
 
-        font = (theme.get("font_family", "Consolas"), int(theme.get("font_size", 11)))
-        self.root.configure(bg=theme["bg"])
+        bg = theme["bg"]
+        text_bg = theme["text_bg"]
+        text_fg = theme["text_fg"]
+        entry_bg = theme.get("entry_bg", text_bg)
+        entry_fg = theme.get("entry_fg", text_fg)
+        font_family = theme.get("font_family", "Segoe UI")
+        font_size = theme.get("font_size", 12)
 
-        if self.text_area is None:
-            self.text_area = scrolledtext.ScrolledText(
-                self.root,
-                wrap=tk.WORD,
-                width=72,
-                height=26,
-                font=font,
-                bg=theme["text_bg"],
-                fg=theme["text_fg"],
-                insertbackground="white",
-                borderwidth=0,
-                relief="flat",
-            )
-            self.text_area.pack(padx=20, pady=10)
-            self.text_area.configure(state="disabled")
-        else:
-            self.text_area.configure(bg=theme["text_bg"], fg=theme["text_fg"], font=font)
+        self.configure(bg=bg)
+        self.text_area.configure(bg=text_bg, fg=text_fg, font=(font_family, font_size))
+        self.entry.configure(bg=entry_bg, fg=entry_fg, font=(font_family, font_size))
 
-        if self.entry is None:
-            self.entry = tk.Entry(
-                self.root,
-                font=font,
-                bg=theme["entry_bg"],
-                fg=theme["entry_fg"],
-                insertbackground="white",
-                relief="flat",
-            )
-            self.entry.pack(fill=tk.X, padx=20, pady=(0, 10))
-            self.entry.bind("<Return>", self.send_input)
-        else:
-            self.entry.configure(bg=theme["entry_bg"], fg=theme["entry_fg"], font=font)
+    # ------------------------------------------------------------------
+    def _restore_model_selection(self) -> None:
+        models_dir, selected = current_selection(self.models_dir)
+        if selected:
+            self.models_dir = models_dir
+            self.current_model = selected
+            self.shell.select_model(str(self.models_dir), self.current_model)
+        elif model := self.cfg.get("model"):
+            candidate = self.models_dir / model
+            if candidate.exists():
+                self.current_model = model
+                self.shell.select_model(str(self.models_dir), self.current_model)
+        self._refresh_models_menu()
+        self._update_status()
 
-        self.text_area.tag_config("user", foreground=theme["user_fg"])
-        self.text_area.tag_config("alter", foreground=theme["alter_fg"])
-        self.text_area.tag_config("prismari", foreground=theme.get("alter_fg", "#ff80ab"))
-
-        if self.prismari_enabled.get():
-            line = self._prismari_line_for_theme(theme_name)
-            if line:
-                self.display_text(f"[prismari] “{line}”\n\n", "prismari")
-
-        self._update_title()
-
-    def _reload_themes(self):
-        if refreshed := load_json_themes(THEME_DIR):
-            self.themes = refreshed
-        else:
-            self.display_text("[notice] No custom themes detected. Built-ins remain.\n\n", "alter")
-            self.themes = BUILTIN_THEMES.copy()
-        self._build_menu()
-        self._apply_theme(self.current_theme_name)
-        self.display_text("[notice] Themes reloaded.\n\n", "alter")
-
-    def _prismari_line_for_theme(self, theme_name: str) -> str | None:
-        if Prismari:
-            muse = Prismari()
-            return muse.default_comments[hash(theme_name) % len(muse.default_comments)]
-        lines = [
-            "Soft chaos, but make it fashion.",
-            "High-drama and probably haunted. I’m obsessed.",
-            "Eden-coded. Dreambearer approved.",
-            "That palette? She’s dangerous and she knows it.",
-        ]
-        return lines[hash(theme_name) % len(lines)]
-
-    def _persona_hint(self) -> str:
-        persona_root = get_persona_root()
-        hint = (
-            f"[notice] No personas were found in {persona_root}.\n"
-            "Drop `.chaos` or `.mirror.json` persona files there, or see the README's persona section.\n"
-            "https://github.com/Autumnus-Labs/AlterEgo#persona-simulation\n\n"
-        )
-        return hint
-
-    def _show_persona_status(self):
-        try:
-            persona_root = get_persona_root()
-            if not persona_root.exists():
-                self.display_text(self._persona_hint(), "alter")
-                return
-            count = sum(1 for _ in persona_root.rglob("*.mirror.json")) + sum(1 for _ in persona_root.rglob("*.chaos"))
-            if count == 0:
-                self.display_text(self._persona_hint(), "alter")
-        except Exception as exc:
-            self.display_text(f"[notice] Persona check skipped: {exc}\n\n", "alter")
-
-    def _show_welcome_banner(self):
-        message = (
-            "Alter/Ego is awake.\n"
-            f"If you're just starting, try the starter model `{WELCOME_MODEL}` in your models folder.\n"
-            "Drop `.gguf` files into the folder and open Models → choose the file.\n"
-            "Details: https://github.com/Autumnus-Labs/AlterEgo#recommended-starter-model\n\n"
-        )
-        self.display_text(message, "alter")
-
-    def _show_model_status(self):
-        if not self._models_list:
-            self.display_text(
-                "[notice] No `.gguf` models detected yet.\n"
-                "Follow the README's model setup section or download GPT4All starter packs.\n"
-                "https://github.com/Autumnus-Labs/AlterEgo#model-setup\n\n",
-                "alter",
-            )
-            return
-        desired = self.current_model or get_model_name()
-        if desired and desired not in self._models_list:
-            self.display_text(
-                f"[notice] `{desired}` is missing from {self.models_dir}.\n"
-                "Select an available model from the menu or drop the file into the folder.\n\n",
-                "alter",
-            )
-        elif not desired:
-            self.display_text(
-                "[notice] No model selected yet. Use the Models menu to pick a `.gguf`.\n\n",
-                "alter",
-            )
-
-    def _rebuild_model_menu(self):
-        self._model_menu.delete(0, tk.END)
-        self._model_menu.add_command(label=f"Folder: {self.models_dir}", state="disabled")
-        self._model_menu.add_command(label="Change folder…", command=self._choose_models_dir)
-        self._model_menu.add_separator()
-        if not self._models_list:
-            self._model_menu.add_command(label="(no .gguf models found)", state="disabled")
-        else:
-            for name in self._models_list:
-                self._model_menu.add_command(label=name, command=lambda n=name: self.set_model(n))
-        self._model_menu.add_separator()
-        self._model_menu.add_command(label="Clear model (no selection)", command=lambda: self.set_model(None))
-
-    def _choose_models_dir(self):
-        chosen = filedialog.askdirectory(initialdir=str(self.models_dir), title="Select GPT4All models folder")
-        if not chosen:
-            return
-        self.models_dir = Path(chosen)
-        os.environ["GPT4ALL_MODEL_DIR"] = str(self.models_dir)
-        self._models_list = list_models(self.models_dir)
-        self._rebuild_model_menu()
-        self.display_text(f"[notice] Models folder set to: {self.models_dir}\n\n", "alter")
-
-    def _poll_models(self):
-        current = list_models(self.models_dir)
-        if current != self._models_list:
-            self._models_list = current
-            self._rebuild_model_menu()
-            self.display_text("[notice] Model list updated.\n\n", "alter")
-        self.root.after(2000, self._poll_models)
-
-    def set_theme(self, theme_name: str):
-        self._apply_theme(theme_name)
-
-    def set_model(self, model_filename: str | None):
-        if model_filename:
-            os.environ["GPT4ALL_MODEL_DIR"] = str(self.models_dir)
-            os.environ["GPT4ALL_MODEL"] = model_filename
-            self.cfg["model"] = model_filename
-            self.current_model = model_filename
-            save_gui_config(self.cfg)
-            try:
-                self.shell.select_model(str(self.models_dir), model_filename)
-                self.display_text(f"[notice] Model selected: {model_filename}\n\n", "alter")
-            except Exception as exc:
-                self.display_text(f"[notice] Could not select model: {exc}\n\n", "alter")
-        else:
-            self.cfg["model"] = None
-            save_gui_config(self.cfg)
-            os.environ.pop("GPT4ALL_MODEL", None)
-            self.current_model = None
-            try:
-                self.shell.select_model(str(self.models_dir), None)
-            except Exception:
-                pass
-            self.display_text("[notice] Cleared model selection. Pick one from the menu.\n\n", "alter")
-
-    def speak(self, text: str):
-        try:
-            tts_speak(text)
-        except Exception as exc:
-            logging.warning("[tts_warning] %s", exc)
-        except Exception as e:
-            logging.warning(f"[tts_warning] {e}")
-
-    def send_input(self, event=None):
-        user_text = self.entry.get().strip()
-        if not user_text:
-            return
-
-        self.entry.delete(0, tk.END)
-        self.display_text(f"You: {user_text}\n", "user")
-
-        if self.executor_mode.get():
-            user_text = "[mode: executor]\n" + user_text
-
-        try:
-            response = self.shell.interact(user_text)
-        except Exception as exc:
-            logging.exception("shell.interact failed")
-            self.display_text(
-                "[error] Something went wrong while talking to the runtime.\n"
-                f"{exc}\n"
-                "Check the logs folder for full tracebacks.\n\n",
-            logging.exception("interaction failed")
-            self.display_text(
-                (
-                    "[error] The model stumbled while replying. "
-                    f"Details: {exc}. See the log for the full trace.\n\n"
-                ),
-                "alter",
+    # ------------------------------------------------------------------
+    def _refresh_models_menu(self) -> None:
+        self.model_menu.delete(2, tk.END)
+        self.models = list_models(self.models_dir)
+        if not self.models:
+            self.model_menu.add_command(label="No models found", state=tk.DISABLED)
+            self.model_menu.add_command(
+                label="Open models folder",
+                command=lambda: self._open_folder(self.models_dir),
             )
             return
 
-        if isinstance(response, str):
-            self.display_text(f"{response}\n\n", "alter")
-            self.speak(response)
+        for name in self.models:
+            def _select(n=name):
+                self._set_model_selection(n)
 
-        self._update_title()
+            label = f"{name}"
+            if name == self.current_model:
+                label = f"✓ {name}"
+            self.model_menu.add_command(label=label, command=_select)
 
-    def display_text(self, text: str, tag: str):
-        self.text_area.configure(state="normal")
-        self.text_area.insert(tk.END, text, tag)
-        self.text_area.configure(state="disabled")
-        self.text_area.yview(tk.END)
-
-    def _save_prefs_only(self):
-        self.cfg["prismari_enabled"] = bool(self.prismari_enabled.get())
+    # ------------------------------------------------------------------
+    def _set_model_selection(self, model_name: str) -> None:
+        self.shell.select_model(str(self.models_dir), model_name)
+        self.current_model = model_name
+        self.cfg["model"] = model_name
         save_gui_config(self.cfg)
+        self._refresh_models_menu()
+        self._update_status()
 
-    def _update_title(self):
-        active_persona = self.fronting.get_active()
-        self.root.title(f"Alter/Ego — {active_persona}" if active_persona else "Alter/Ego")
+    # ------------------------------------------------------------------
+    def _pick_model_dir(self) -> None:
+        selected = filedialog.askdirectory(initialdir=self.models_dir)
+        if selected:
+            self.models_dir = Path(selected)
+            self.shell.select_model(str(self.models_dir), self.current_model)
+            self.cfg["model_dir"] = str(self.models_dir)
+            save_gui_config(self.cfg)
+            self._refresh_models_menu()
+            self._update_status()
 
-    def on_close(self):
+    # ------------------------------------------------------------------
+    def _pick_persona_file(self) -> None:
+        persona_root = get_persona_root()
+        filetypes = [
+            ("Persona files", ("*.chaos", "*.mirror.json")),
+            ("All files", "*.*"),
+        ]
+        path = filedialog.askopenfilename(initialdir=persona_root, filetypes=filetypes)
+        if path:
+            try:
+                self.fronting.front(Path(path))
+                self._append(f"[persona] Fronting {Path(path).stem}\n")
+            except Exception as exc:
+                messagebox.showerror("Persona error", str(exc))
+        self._update_status()
+
+    # ------------------------------------------------------------------
+    def _refresh_persona_hint(self) -> None:
+        self._insert_persona_hint()
+
+    # ------------------------------------------------------------------
+    def _open_folder(self, path: Path) -> None:
+        if os.name == "nt":
+            os.startfile(path)  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            os.system(f"open '{path}'")
+        else:
+            os.system(f"xdg-open '{path}'")
+
+    # ------------------------------------------------------------------
+    def _update_status(self) -> None:
+        persona = self.fronting.get_active() or "none"
+        model = self.current_model or "auto"
+        self.status_var.set(f"persona: {persona} | model: {model}")
+
+    # ------------------------------------------------------------------
+    def _append(self, text: str) -> None:
+        self.text_area.insert(tk.END, text)
+        self.text_area.see(tk.END)
+
+    # ------------------------------------------------------------------
+    def _on_send(self, event=None) -> None:
+        message = self.entry_var.get().strip()
+        if not message:
+            return
+        self.entry_var.set("")
+        self._append(f"You: {message}\n")
+        response = self.shell.interact(message)
+        self._append(f"Alter/Ego: {response}\n\n")
+        tts_speak(response)
+
+    # ------------------------------------------------------------------
+    def _insert_banner(self, label: str, body: str) -> None:
+        banner = f"[{label}] {body}\n"
+        self._append(banner)
+
+    # ------------------------------------------------------------------
+    def _insert_welcome_guidance(self) -> None:
+        self._insert_banner(
+            "welcome",
+            "Thank you for trusting Alter/Ego. The README hosts setup notes if you ever feel lost.",
+        )
+        self._insert_persona_hint()
+        self._insert_model_hint()
+
+    # ------------------------------------------------------------------
+    def _persona_files_present(self, root: Path) -> bool:
+        for pattern in ("*.chaos", "*.mirror.json"):
+            if any(root.glob(pattern)):
+                return True
+        return False
+
+    # ------------------------------------------------------------------
+    def _insert_persona_hint(self) -> None:
+        persona_root = get_persona_root()
+        if not self._persona_files_present(persona_root):
+            self._insert_banner(
+                "notice",
+                (
+                    f"No personas found in {persona_root}. Drop `.chaos` or `.mirror.json` files there, or read the persona guide: "
+                    "https://github.com/Autumnus-Labs/AlterEgo#persona-simulation"
+                ),
+            )
+        else:
+            active = self.fronting.get_active() or "Rhea"
+            self._insert_banner("persona", f"Currently fronting {active}. Personas live in {persona_root}.")
+
+    # ------------------------------------------------------------------
+    def _insert_model_hint(self) -> None:
+        models = list_models(self.models_dir)
+        starter = starter_model_path(self.models_dir)
+        if not models:
+            self._insert_banner(
+                "models",
+                (
+                    f"Drop GGUF files into {self.models_dir} to enable GPT4All. We recommend starting with {STARTER_MODEL}.
+Read more: https://github.com/Autumnus-Labs/AlterEgo#starter-model"
+                ),
+            )
+        elif not starter.exists():
+            self._insert_banner(
+                "models",
+                (
+                    f"Consider downloading the starter model {STARTER_MODEL} for the best first-run experience.
+Store it at {starter}."
+                ),
+            )
+        else:
+            self._insert_banner(
+                "models",
+                f"Models loaded from {self.models_dir}. Starter model detected: {STARTER_MODEL}.",
+            )
+
+    # ------------------------------------------------------------------
+    def _on_close(self) -> None:
         shutdown_tts()
-        try:
-            _syslog_fp.flush()
-            _syslog_fp.close()
-        except Exception:
-            pass
-        self.root.destroy()
+        save_gui_config(self.cfg)
+        self.destroy()
 
 
-def main():
-    start_tts()
-    start_tts_loop()
-    cfg = load_gui_config()
-    theme = cfg.get("theme")
-    root = tk.Tk()
-    AlterEgoGUI(root, initial_theme=theme)
-    root.mainloop()
+def main() -> None:  # pragma: no cover - GUI entry point
+    app = AlterEgoGUI()
+    app.mainloop()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - GUI entry point
     main()

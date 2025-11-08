@@ -1,34 +1,19 @@
-"""Theme helpers for the Alter/Ego GUI."""
-
-from __future__ import annotations
-
-from pathlib import Path
-from typing import Dict
-import json
-"""Theme loading + normalisation helpers for the Alter/Ego GUI."""
+"""Theme discovery helpers for the Alter/Ego GUI."""
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Iterable
+
+log = logging.getLogger("alter_ego_gui.themes")
 
 APP_DIR = Path(__file__).resolve().parent.parent
-THEME_DIR = Path(os.getenv("THEME_DIR") or (APP_DIR / "themes"))
+DEFAULT_THEME_DIR = APP_DIR / "themes"
 
-BUILTIN_THEMES: Dict[str, Dict] = {
-    "dark": {
-        "bg": "#1f1f2e",
-        "text_bg": "#2e2e3f",
-        "text_fg": "#dcdcdc",
-        "user_fg": "#85d6ff",
-        "alter_fg": "#f5b6ff",
-        "entry_bg": "#3c3c50",
-        "entry_fg": "#ffffff",
-        "font_family": "Consolas",
-        "font_size": 11,
-    },
+BUILTIN_THEMES: Dict[str, Dict[str, object]] = {
     "eden": {
         "bg": "#101820",
         "text_bg": "#0f2740",
@@ -39,6 +24,17 @@ BUILTIN_THEMES: Dict[str, Dict] = {
         "entry_fg": "#ffffff",
         "font_family": "Corbel",
         "font_size": 18,
+    },
+    "dark": {
+        "bg": "#1f1f2e",
+        "text_bg": "#2e2e3f",
+        "text_fg": "#dcdcdc",
+        "user_fg": "#85d6ff",
+        "alter_fg": "#f5b6ff",
+        "entry_bg": "#3c3c50",
+        "entry_fg": "#ffffff",
+        "font_family": "Consolas",
+        "font_size": 11,
     },
     "light": {
         "bg": "#fafafa",
@@ -54,125 +50,83 @@ BUILTIN_THEMES: Dict[str, Dict] = {
 }
 
 
-def _coerce_theme_from_tokens(name: str, tokens: Dict) -> Dict:
-    def tok(key: str, default):
-        return tokens.get(key, default)
-def _coerce_theme_from_tokens(name: str, tokens: dict) -> dict:
-    def tok(k, default):
-        return tokens.get(k, default)
-
-    bg = tok("background", "#1f1f2e")
-    text_bg = tok("panel", tok("background-2", "#2e2e3f"))
-    text_fg = tok("foreground", "#dcdcdc")
-    entry_bg = tok("input-bg", "#3c3c50")
-    entry_fg = tok("input-fg", "#ffffff")
-    user_fg = tok("accent", "#85d6ff")
-    alter_fg = tok("highlight", "#f5b6ff")
-    font_family = tokens.get("font_family", "Consolas")
-    try:
-        font_size = int(tokens.get("font_size", 11))
-    except Exception:
-        font_size = 11
-
-    return {
-        "bg": bg,
-        "text_bg": text_bg,
-        "text_fg": text_fg,
-        "user_fg": user_fg,
-        "alter_fg": alter_fg,
-        "entry_bg": entry_bg,
-        "entry_fg": entry_fg,
-        "font_family": font_family,
-        "font_size": font_size,
-        "_source": f"tokens:{name}",
-    }
+LEGACY_THEME_DIRS: Iterable[Path] = (
+    APP_DIR / "config" / "themes",
+    APP_DIR.parent / "themes",
+)
 
 
-def _normalize_theme_json(name: str, data: Dict) -> Dict | None:
-    if (
-        "eden_themes" in data
-        and isinstance(data["eden_themes"], list)
-        and data["eden_themes"]
-    ):
-        default_name = data.get("default_palette")
-        chosen = None
-        if default_name:
-            for theme in data["eden_themes"]:
-                if theme.get("name") == default_name:
-                    chosen = theme
-                    break
-        if not chosen:
-            chosen = data["eden_themes"][0]
-        return _coerce_theme_from_tokens(
-            chosen.get("name", name), chosen.get("tokens", {})
-        )
+def discover_theme_dir() -> Path:
+    """Return the directory that should be scanned for JSON themes."""
 
-    if "tokens" in data and isinstance(data["tokens"], dict):
-        return _coerce_theme_from_tokens(
-            data.get("name", name), data["tokens"]
-        )
-def _normalize_theme_json(name: str, data: dict) -> dict | None:
-    if "eden_themes" in data and isinstance(data["eden_themes"], list) and data["eden_themes"]:
-        default_name = data.get("default_palette")
-        chosen = None
-        if default_name:
-            for t in data["eden_themes"]:
-                if t.get("name") == default_name:
-                    chosen = t
-                    break
-        if not chosen:
-            chosen = data["eden_themes"][0]
-        return _coerce_theme_from_tokens(chosen.get("name", name), chosen.get("tokens", {}))
+    if env_dir := os.getenv("THEME_DIR"):
+        path = Path(env_dir).expanduser()
+        if path.exists():
+            return path
+        log.warning("THEME_DIR=%s does not exist; falling back to defaults", env_dir)
 
-    if "tokens" in data and isinstance(data["tokens"], dict):
-        return _coerce_theme_from_tokens(data.get("name", name), data["tokens"])
+    if DEFAULT_THEME_DIR.exists():
+        return DEFAULT_THEME_DIR
 
-    keys = {"bg", "text_bg", "text_fg", "user_fg", "alter_fg", "entry_bg", "entry_fg"}
-    if any(k in data for k in keys):
-        merged = BUILTIN_THEMES["dark"].copy()
-        merged.update(data)
-        merged.setdefault("font_family", "Consolas")
-        merged.setdefault("font_size", 11)
-        merged["_source"] = f"direct:{name}"
-        return merged
+    for legacy in LEGACY_THEME_DIRS:
+        if legacy.exists():
+            log.warning(
+                "Using legacy theme directory at %s; move themes next to main/ or set THEME_DIR.",
+                legacy,
+            )
+            return legacy
 
-    return None
+    return DEFAULT_THEME_DIR
 
 
-def load_json_themes(theme_dir: Path) -> Dict[str, Dict]:
-    """Return theme definitions discovered under ``theme_dir``."""
+def _normalize_theme_json(name: str, data: object) -> Dict[str, object] | None:
+    if not isinstance(data, dict):
+        log.warning("theme %s is not a JSON object; skipping", name)
+        return None
 
-    themes: Dict[str, Dict] = {}
+    required = {"bg", "text_bg", "text_fg", "user_fg", "alter_fg"}
+    if missing := required - data.keys():
+        log.warning("theme %s missing keys: %s", name, ", ".join(sorted(missing)))
+        return None
+
+    normalized = dict(data)
+    normalized.setdefault("entry_bg", normalized["text_bg"])
+    normalized.setdefault("entry_fg", normalized["text_fg"])
+    normalized.setdefault("font_family", "Segoe UI")
+    normalized.setdefault("font_size", 12)
+    return normalized
+
+
+def load_json_themes(theme_dir: Path) -> Dict[str, Dict[str, object]]:
+    """Load ``*.json`` themes from ``theme_dir``."""
+
+    themes: Dict[str, Dict[str, object]] = {}
     if not theme_dir.exists():
         return themes
 
-    for path in sorted(theme_dir.glob("*.json")):
+    for path in theme_dir.glob("*.json"):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            if normalized := _normalize_theme_json(path.stem, data):
-                themes[path.stem] = normalized
-        except Exception as exc:
-            print(f"[theme_warning] Could not load {path.name}: {exc}")
-
-    return themes
-
-
-__all__ = ["BUILTIN_THEMES", "load_json_themes"]
-import logging
-
-def load_json_themes(theme_dir: Path) -> Dict[str, Dict]:
-    themes: Dict[str, Dict] = {}
-    if not theme_dir.exists():
-        return themes
-    for p in sorted(theme_dir.glob("*.json")):
-        try:
-            data = json.loads(p.read_text(encoding="utf-8"))
-            if norm := _normalize_theme_json(p.stem, data):
-                themes[p.stem] = norm
-        except Exception as e:
-            logging.error(f"Failed to load theme file '{p}': {e}")
+        except (json.JSONDecodeError, OSError) as exc:
+            log.warning("could not read theme %s: %s", path.name, exc)
             continue
+
+        if normalized := _normalize_theme_json(path.stem, data):
+            themes[path.stem] = normalized
     return themes
 
 
-__all__ = ["BUILTIN_THEMES", "load_json_themes", "THEME_DIR"]
+def available_themes(theme_dir: Path) -> Dict[str, Dict[str, object]]:
+    """Return merged builtin + JSON themes."""
+
+    merged = dict(BUILTIN_THEMES)
+    merged.update(load_json_themes(theme_dir))
+    return merged
+
+
+__all__ = [
+    "BUILTIN_THEMES",
+    "available_themes",
+    "discover_theme_dir",
+    "load_json_themes",
+]

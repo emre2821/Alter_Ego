@@ -1,24 +1,31 @@
-"""Model discovery helpers for the Alter/Ego GUI."""
 """Helpers for discovering GPT4All model folders used by the GUI."""
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from configuration import get_models_dir, get_model_name
+from configuration import get_model_name, get_models_dir
+
+log = logging.getLogger("alter_ego_gui.models")
+
+STARTER_MODEL = "DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf"
 
 
-def resolve_models_dir() -> Path:
+def resolve_models_dir(create: bool = True) -> Path:
     """Return the directory that should be displayed in the Models menu."""
 
-    return get_models_dir(create=True)
+    return get_models_dir(create=create)
 
 
 def list_models(models_dir: Path) -> List[str]:
+    """Return sorted ``.gguf`` model filenames available under ``models_dir``."""
+
     try:
         return sorted(p.name for p in models_dir.glob("*.gguf"))
-    except Exception:
+    except Exception:  # pragma: no cover - defensive logging
+        log.exception("Failed to list models in directory: %s", models_dir)
         return []
 
 
@@ -32,25 +39,16 @@ def current_selection(models_dir: Path) -> Tuple[Path, Optional[str]]:
     return models_dir, None
 
 
-__all__ = ["resolve_models_dir", "list_models", "current_selection"]
+def starter_model_path(models_dir: Path) -> Path:
+    """Return the recommended starter model location."""
 
-from configuration import get_models_dir
-
-
-def default_models_dir() -> Path:
-    path = get_models_dir()
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    return models_dir / STARTER_MODEL
 
 
-import logging
-
-def list_models(models_dir: Path) -> list[str]:
-    try:
-        return sorted(p.name for p in models_dir.glob("*.gguf"))
-    except Exception as e:
-        logging.exception("Failed to list models in directory: %s", models_dir)
-        return []
-
-
-__all__ = ["default_models_dir", "list_models"]
+__all__ = [
+    "STARTER_MODEL",
+    "current_selection",
+    "list_models",
+    "resolve_models_dir",
+    "starter_model_path",
+]
