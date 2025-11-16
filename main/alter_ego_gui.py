@@ -117,22 +117,6 @@ class AlterEgoGUI(tk.Tk):
         self.entry_panel = EntryPanel(self)
         self.entry_panel.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 12))
         self.entry_panel.bind_send(self._on_send)
-        self.text_area = scrolledtext.ScrolledText(self, wrap=tk.WORD, state=tk.DISABLED)
-        self.text_area.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
-
-        entry_frame = tk.Frame(self)
-        entry_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 12))
-        entry_frame.columnconfigure(0, weight=1)
-
-        self.entry_var = tk.StringVar()
-        self.entry = tk.Entry(
-            entry_frame,
-            textvariable=self.entry_var,
-            relief="flat",
-            borderwidth=0,
-        )
-        self.entry.grid(row=0, column=0, sticky="ew")
-        self.entry.bind("<Return>", self._on_send)
 
         self.status_bar = StatusBar(self)
         self.status_bar.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 12))
@@ -155,9 +139,6 @@ class AlterEgoGUI(tk.Tk):
             starter_model_name=STARTER_MODEL,
         )
         self.entry_panel.focus_entry()
-        self.status_var = tk.StringVar(value="persona: none | model: auto")
-        status = tk.Label(self, textvariable=self.status_var, anchor="w")
-        status.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 12))
 
         self._build_menu()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -330,10 +311,6 @@ class AlterEgoGUI(tk.Tk):
     # ------------------------------------------------------------------
     def _append(self, text: str) -> None:
         self.conversation.append(text)
-        self.text_area.configure(state=tk.NORMAL)
-        self.text_area.insert(tk.END, text)
-        self.text_area.configure(state=tk.DISABLED)
-        self.text_area.see(tk.END)
 
     # ------------------------------------------------------------------
     def _on_send(self, event=None) -> None:
