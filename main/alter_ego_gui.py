@@ -113,8 +113,8 @@ class AlterEgoGUI(tk.Tk):
         self.rowconfigure(1, weight=0)
         self.rowconfigure(2, weight=0)
 
-        self.conversation = ConversationPane(self)
-        self.conversation.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+        self.conversation_pane = ConversationPane(self)
+        self.conversation_pane.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
 
         self.entry_panel = EntryPanel(self)
         self.entry_panel.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 12))
@@ -132,7 +132,7 @@ class AlterEgoGUI(tk.Tk):
             on_refresh_personas=self._refresh_persona_hint,
         )
         self.banner_manager = BannerManager(
-            self.conversation,
+            self.conversation_pane,
             persona_root_provider=get_persona_root,
             fronting_active=self.fronting.get_active,
             models_dir_provider=lambda: self.models_dir,
@@ -187,7 +187,7 @@ class AlterEgoGUI(tk.Tk):
 
         self.configure(bg=bg)
         font = (font_family, font_size)
-        self.conversation.apply_theme(background=text_bg, foreground=text_fg, font=font)
+        self.conversation_pane.apply_theme(background=text_bg, foreground=text_fg, font=font)
         self.entry_panel.apply_theme(background=entry_bg, foreground=entry_fg, font=font)
         self.status_bar.apply_theme(background=bg, foreground=text_fg, font=font)
 
@@ -312,9 +312,9 @@ class AlterEgoGUI(tk.Tk):
 
     # ------------------------------------------------------------------
     def _append(self, text: str) -> None:
-        if not hasattr(self, "conversation"):
+        if not hasattr(self, "conversation_pane"):
             raise RuntimeError("Conversation pane is not initialized")
-        self.conversation.append(text)
+        self.conversation_pane.append(text)
 
     # ------------------------------------------------------------------
     def _on_send(self, event=None) -> None:
@@ -341,63 +341,7 @@ class AlterEgoGUI(tk.Tk):
     # ------------------------------------------------------------------
     def _insert_welcome_guidance(self) -> None:
         self.banner_manager.insert_welcome()
-        self._insert_banner(
-            "welcome",
-            "Thank you for trusting Alter/Ego. The README hosts setup notes if you ever feel lost.",
-        )
-        self._insert_persona_hint()
-        self._insert_model_hint()
 
-    # ------------------------------------------------------------------
-    def _persona_files_present(self, root: Path) -> bool:
-        for pattern in ("*.chaos", "*.mirror.json"):
-            if any(root.glob(pattern)):
-                return True
-        return False
-
-    # ------------------------------------------------------------------
-    def _insert_persona_hint(self) -> None:
-        persona_root = get_persona_root()
-        if not self._persona_files_present(persona_root):
-            self._insert_banner(
-                "notice",
-                (
-                    f"No personas found in {persona_root}. Drop `.chaos` or `.mirror.json` files there, or read the persona guide:\n"
-                    "https://github.com/Autumnus-Labs/AlterEgo#persona-simulation"
-                ),
-            )
-        else:
-            active = self.fronting.get_active() or "Rhea"
-            self._insert_banner("persona", f"Currently fronting {active}. Personas live in {persona_root}.")
-
-    # ------------------------------------------------------------------
-    def _insert_model_hint(self) -> None:
-        models = list_models(self.models_dir)
-        starter = starter_model_path(self.models_dir)
-        if not models:
-            self._insert_banner(
-                "models",
-                (
-                    f"Drop GGUF files into {self.models_dir} to enable GPT4All. "
-                    f"We recommend starting with {STARTER_MODEL}. "
-                    f"Drop GGUF files into {self.models_dir} to enable GPT4All. We recommend starting with {STARTER_MODEL}.\n"
-                    "Read more: https://github.com/Autumnus-Labs/AlterEgo#starter-model"
-                ),
-            )
-        elif not starter.exists():
-            self._insert_banner(
-                "models",
-                (
-                    f"Consider downloading the starter model {STARTER_MODEL} for the best first-run experience. "
-                    f"Consider downloading the starter model {STARTER_MODEL} for the best first-run experience.\n"
-                    f"Store it at {starter}."
-                ),
-            )
-        else:
-            self._insert_banner(
-                "models",
-                f"Models loaded from {self.models_dir}. Starter model detected: {STARTER_MODEL}.",
-            )
 
     # ------------------------------------------------------------------
     def _on_close(self) -> None:
