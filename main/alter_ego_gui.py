@@ -110,6 +110,8 @@ class AlterEgoGUI(tk.Tk):
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=0)
+        self.rowconfigure(2, weight=0)
 
         self.conversation = ConversationPane(self)
         self.conversation.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
@@ -310,6 +312,8 @@ class AlterEgoGUI(tk.Tk):
 
     # ------------------------------------------------------------------
     def _append(self, text: str) -> None:
+        if not hasattr(self, "conversation"):
+            raise RuntimeError("Conversation pane is not initialized")
         self.conversation.append(text)
 
     # ------------------------------------------------------------------
