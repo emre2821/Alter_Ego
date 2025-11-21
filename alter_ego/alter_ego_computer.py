@@ -20,9 +20,6 @@ from rich import box
 from pydantic import BaseModel
 import yaml
 
-import chromadb
-from chromadb.config import Settings
-
 EMBED_IMPORT_HINTS = {
     "fastembed": "fastembed",
     "sentence_transformers": "sentence-transformers",
@@ -280,9 +277,11 @@ class Embedder:
 # --------- Vector DB ----------
 class MemoryBank:
     def __init__(self, cfg: Config):
-        self.client = chromadb.PersistentClient(
+        chromadb_module, settings_cls = self._load_chromadb()
+        self._chromadb_errors = chromadb_module.errors
+        self.client = chromadb_module.PersistentClient(
             path=cfg.db_dir,
-            settings=Settings(anonymized_telemetry=False),
+            settings=settings_cls(anonymized_telemetry=False),
         )
         self.cfg = cfg
         self.docs = self._get_collection(cfg.collections["docs"])
@@ -292,8 +291,19 @@ class MemoryBank:
     def _get_collection(self, name: str):
         try:
             return self.client.get_collection(name=name, metadata={"hnsw:space":"cosine"})
-        except chromadb.errors.InvalidCollectionException:
+        except self._chromadb_errors.InvalidCollectionException:  # type: ignore[attr-defined]
             return self.client.create_collection(name=name, metadata={"hnsw:space":"cosine"})
+
+    @staticmethod
+    def _load_chromadb():
+        try:
+            import chromadb
+            from chromadb.config import Settings
+        except Exception as exc:  # pragma: no cover - import guard
+            raise RuntimeError(
+                "ChromaDB is required for RAG features. Install it with `pip install alter-ego[rag]`."
+            ) from exc
+        return chromadb, Settings
 
 # --------- LLM Backends ----------
 class LLM:

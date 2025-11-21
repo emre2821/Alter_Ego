@@ -12,6 +12,13 @@ Alter/Ego is a compact voice companion for desktop workflows. It ships with a si
 pip install alter-ego
 ```
 
+To enable the optional RAG/CLI features that rely on larger libraries such as ChromaDB and the Transformers stack, install the
+`rag` extra:
+
+```bash
+pip install "alter-ego[rag]"
+```
+
 ## CLI Quickstart
 
 ```bash
