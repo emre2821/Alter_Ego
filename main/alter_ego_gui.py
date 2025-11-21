@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, scrolledtext
 
 from alter_shell import AlterShell
 from configuration import get_persona_root
