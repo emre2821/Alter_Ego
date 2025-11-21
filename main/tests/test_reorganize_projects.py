@@ -2,4 +2,4 @@
 
 
 def test_reorganize_projects_placeholder():
-    assert True
+    pass
