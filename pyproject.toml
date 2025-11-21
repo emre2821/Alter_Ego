@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alter-ego"
+version = "0.1.0"
+description = "Alter/Ego — a small text-to-speech assistant for desktop automation."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "emre2821", email = "emre2821@example.com" }]
+dependencies = [
+    "pyttsx3>=2.90",
+    "click>=8.0",
+]
+
+[project.scripts]
+"alter-ego" = "alter_ego.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Autumnus-Labs/AlterEgo"
+Documentation = "https://github.com/Autumnus-Labs/AlterEgo/docs"
+Changelog = "https://github.com/Autumnus-Labs/AlterEgo/CHANGELOG.md"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["alter_ego", "alter_ego.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E203", "E266", "E501", "W503", "F401", "F841", "F821"]
+exclude = [".git", "__pycache__", "dist", "build", ".venv"]
