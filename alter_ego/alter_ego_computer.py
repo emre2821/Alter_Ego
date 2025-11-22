@@ -5,8 +5,8 @@
 # License: MIT
 
 from __future__ import annotations
+import importlib
 import os, sys, time, json, hashlib, threading, queue, re, textwrap, shutil, subprocess
-import os, sys, time, json, hashlib, threading, queue, re, textwrap, shutil, importlib
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -25,14 +25,6 @@ EMBED_IMPORT_HINTS = {
     "sentence_transformers": "sentence-transformers",
 }
 FASTEMBED_PREFIX = "fastembed:"
-
-try:
-    from fastembed import TextEmbedding as FastEmbedTextEmbedding
-    FASTEMBED_OK = True
-except Exception:
-    FastEmbedTextEmbedding = None  # type: ignore
-    FASTEMBED_OK = False
-
 
 def parse_embed_model_name(model_name: str) -> Tuple[str, str]:
     raw = (model_name or "").strip()
@@ -201,15 +193,12 @@ def now_iso() -> str:
 class Embedder:
     def __init__(self, model_name: str):
         provider, name = self._parse_model_name(model_name)
-        self.provider = provider
+        self.backend = provider
         self.model_name = name
         if provider == "fastembed":
             self._init_fastembed(name)
         else:
             self._init_sentence_transformer(name)
-
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        return self._embed_fn(texts)
 
     @staticmethod
     def _parse_model_name(model_name: str) -> Tuple[str, str]:
@@ -256,23 +245,9 @@ class Embedder:
 
         self.model = model
         self._embed_fn = _encode
-        backend, resolved_name = parse_embed_model_name(model_name)
-        self.backend = backend
-        self.model_name = resolved_name
-
-        if backend == "fastembed":
-            if not FASTEMBED_OK:
-                raise RuntimeError(
-                    "fastembed model requested but the fastembed package is not installed."
-                )
-            self.model = FastEmbedTextEmbedding(model_name=resolved_name)  # type: ignore[call-arg]
-        else:
-            self.model = SentenceTransformer(resolved_name)
 
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        if self.backend == "fastembed":
-            return [vec.tolist() for vec in self.model.embed(texts)]
-        return self.model.encode(texts, show_progress_bar=False, convert_to_numpy=False).tolist()
+        return self._embed_fn(texts)
 
 # --------- Vector DB ----------
 class MemoryBank:
