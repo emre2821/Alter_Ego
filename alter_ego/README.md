@@ -22,6 +22,13 @@
    pip install -r requirements.txt
    ```
 
+   If you need the retrieval-augmented memory helpers (ChromaDB + sentence-transformers/Transformers), install the optional
+   `rag` extras instead of the default lightweight stack:
+
+   ```bash
+   pip install .[rag]
+   ```
+
    If you prefer the lighter [FastEmbed](https://github.com/qdrant/fastembed) runtime for embeddings, install it alongside or instead of `sentence-transformers`:
 
    ```bash

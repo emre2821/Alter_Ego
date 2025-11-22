@@ -1,4 +1,3 @@
-chromadb
 gpt4all
 markdown2
 nltk
@@ -7,9 +6,8 @@ openai
 pydantic
 pyttsx3
 pyyaml
+scikit-learn
 requests
 rich
-scikit-learn
-sentence-transformers
 typer
 watchdog
