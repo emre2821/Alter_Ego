@@ -57,6 +57,11 @@ bot.speak("Hello")
 
 Contributions are welcome! Please read `CONTRIBUTING.md` for guidelines.
 
+### Branch naming for CI
+
+The GitHub Actions workflow runs on pushes and pull requests to `develop`, `release/**`, `main`, and `master`. When cutting a
+release branch, use the `release/<name>` pattern (for example, `release/1.2.0`) so CI builds are triggered automatically.
+
 ## License
 
 This project is licensed under the MIT License. See `LICENSE` for details.
