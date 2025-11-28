@@ -6,11 +6,12 @@ Appends CHAOS-formatted entries into a rotating echo log.
 Optionally triggers rituals or check-ins.
 """
 
+import logging
 from datetime import datetime, timezone
-import os
-from pathlib import Path
 
-ECHO_LOG_PATH = "chaos_echo_log.chaos"
+from . import configuration
+
+logger = logging.getLogger(__name__)
 
 
 def format_chaos_entry(prompt: str, echo_metadata: dict) -> str:
@@ -42,14 +43,18 @@ def autosave_prompt(prompt: str, echo_metadata: dict):
     """
     entry = format_chaos_entry(prompt, echo_metadata)
 
+    log_path = configuration.get_log_path()
+    default_log_path = configuration.get_default_log_path()
+    if log_path == default_log_path:
+        logger.info("Using default echo log path: %s", log_path)
+
     # Ensure parent directory exists, if any
-    p = Path(ECHO_LOG_PATH)
-    if p.parent and not p.parent.exists():
+    if log_path.parent and not log_path.parent.exists():
         try:
-            p.parent.mkdir(parents=True, exist_ok=True)
+            log_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             print(f"[autosave_warning] cannot create log dir: {e}")
-    with open(p, "a", encoding="utf-8") as f:
+    with open(log_path, "a", encoding="utf-8") as f:
         f.write(entry + "\n\n")
 
     print("[Autosave] Echo entry recorded.")
