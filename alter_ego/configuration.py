@@ -157,6 +157,22 @@ def get_log_path() -> Path:
     return APP_ROOT / "chaos_echo_log.chaos"
 
 
+def get_switch_log_path(create: bool = True) -> Path:
+    """Return the persona switch log file path."""
+
+    if env := _env("ALTER_EGO_SWITCH_LOG"):
+        path = _expand(env)
+    elif (cfg_path := _path_from_config("switch_log_path", "switch_log")) is not None:
+        path = cfg_path
+    else:
+        path = APP_ROOT / "alter_switch_log.chaos"
+
+    if create:
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+    return path
+
+
 def describe_data_locations() -> Dict[str, Path]:
     """Return a mapping of important runtime paths for documentation."""
 
@@ -175,5 +191,6 @@ __all__ = [
     "get_model_name",
     "get_models_dir",
     "get_persona_root",
+    "get_switch_log_path",
     "load_configuration",
 ]
