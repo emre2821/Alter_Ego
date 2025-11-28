@@ -40,6 +40,21 @@ class AlterShell:
         threading.Thread(target=self._warm_start, daemon=True).start()
 
     # ------------------------------------------------------------------
+    def _mark_backend_ready(self, model: object, message: str) -> None:
+        self._model = model
+        self._model_warning = None
+        self._model_ready.set()
+        log.info(message)
+
+    # ------------------------------------------------------------------
+    def _get_dummy_backend(self) -> object | None:
+        try:
+            return get_dummy_engine()
+        except Exception:
+            log.exception("Dummy engine warm-start check failed")
+            return None
+
+    # ------------------------------------------------------------------
     def _warm_start(self) -> None:
         dummy_mode = os.getenv("ALTER_EGO_DUMMY_ONLY", "auto").strip().lower()
 
@@ -69,6 +84,23 @@ class AlterShell:
                 self._model_ready.set()
                 self._model_warning = None
                 log.info("Dummy-only mode active; warm-start complete without GPT4All.")
+            return
+
+        log.warning("Warm-start deferred: no model ready; continuing to boot")
+            model = get_shared_model()
+        except Exception:
+            log.exception("Warm-start failed")
+            self._model_warning = "Model discovery failed; check logs for details."
+            return
+
+        self._model = model
+        if self._model is not None:
+            self._mark_backend_ready(self._model, "LLM warm-start complete.")
+            return
+
+        dummy_backend = self._get_dummy_backend()
+        if dummy_backend is not None:
+            self._mark_backend_ready(dummy_backend, "Dummy engine available; skipping GPT4All warm-start")
             return
 
         self._model_warning = "No model available yet; still booting backend."
