@@ -16,14 +16,20 @@
 
 ## Quickstart
 
-1. **Install dependencies** — Using `requirements.txt` is the recommended approach for a reproducible local setup:
+1. **Install dependencies** — Using `requirements.txt` is the recommended approach for a reproducible local setup. It now pulls
+   in the `rag` extras so the CLI’s MemoryBank and embedding defaults work immediately:
 
    ```bash
    pip install -r requirements.txt
    ```
 
-   If you need the retrieval-augmented memory helpers (ChromaDB + sentence-transformers/Transformers), install the optional
-   `rag` extras instead of the default lightweight stack:
+   If you prefer the lighter base install, use the project metadata directly without extras:
+
+   ```bash
+   pip install .
+   ```
+
+   You can still opt into the RAG stack explicitly when needed:
 
    ```bash
    pip install .[rag]

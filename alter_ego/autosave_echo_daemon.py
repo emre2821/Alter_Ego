@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 
-ECHO_LOG_PATH = "chaos_echo_log.chaos"
+from . import configuration
 
 
 def format_chaos_entry(prompt: str, echo_metadata: dict) -> str:
@@ -42,8 +42,13 @@ def autosave_prompt(prompt: str, echo_metadata: dict):
     """
     entry = format_chaos_entry(prompt, echo_metadata)
 
+    log_path = configuration.get_log_path()
+    default_log_path = configuration.APP_ROOT / "chaos_echo_log.chaos"
+    if log_path == default_log_path:
+        print(f"[autosave_notice] Using default echo log path: {log_path}")
+
     # Ensure parent directory exists, if any
-    p = Path(ECHO_LOG_PATH)
+    p = Path(log_path)
     if p.parent and not p.parent.exists():
         try:
             p.parent.mkdir(parents=True, exist_ok=True)
