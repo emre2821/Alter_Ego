@@ -1,16 +1,11 @@
+# Install Alter/Ego with the RAG extras to keep version constraints synced with pyproject.toml.
+..[rag]
+
+# Additional runtime dependencies that complement the packaged core.
 gpt4all
 markdown2
 nltk
 numpy
 openai
-pydantic
-pyttsx3
-pyyaml
 scikit-learn
 requests
-rich
-typer
-watchdog
-chromadb>=0.4,<0.5
-sentence-transformers>=2.2.0,<2.3.0
-transformers>=4.38,<4.40
