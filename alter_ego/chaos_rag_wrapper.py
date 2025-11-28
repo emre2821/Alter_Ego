@@ -76,14 +76,17 @@ _MODEL_DIR: Optional[Path] = None
 _SEL_DIR: Optional[Path] = None
 _SEL_NAME: Optional[str] = None
 
+_GPT4ALL_REACHABLE: Optional[bool] = None
+
 
 def set_model_selection(model_dir: str | None, model_name: str | None) -> None:
-    global _SEL_DIR, _SEL_NAME, _MODEL, _MODEL_DIR, _MODEL_NAME
+    global _SEL_DIR, _SEL_NAME, _MODEL, _MODEL_DIR, _MODEL_NAME, _GPT4ALL_REACHABLE
     _SEL_DIR = Path(model_dir) if model_dir else None
     _SEL_NAME = model_name
     _MODEL = None
     _MODEL_DIR = None
     _MODEL_NAME = None
+    _GPT4ALL_REACHABLE = None
 
 
 # ---------------------------------------------------------------------------
@@ -108,21 +111,42 @@ def _llm_allowed() -> bool:
 
 
 def _gpt4all_reachable() -> bool:
+    global _GPT4ALL_REACHABLE
+
     if not _llm_allowed():
         return False
+
+    if _GPT4ALL_REACHABLE is not None:
+        return _GPT4ALL_REACHABLE
+
     if GPT4All is None:
+        _GPT4ALL_REACHABLE = False
         return False
     if _MODEL is not None:
+        _GPT4ALL_REACHABLE = True
         return True
     try:
         models_dir = _SEL_DIR or _resolve_model_dir()
         _discover_model_name(models_dir)
     except FileNotFoundError:
+        _GPT4ALL_REACHABLE = False
         return False
     except Exception as exc:  # pragma: no cover - defensive guard
         log.debug("GPT4All discovery failed: %s", exc)
+        _GPT4ALL_REACHABLE = False
         return False
+
+    _GPT4ALL_REACHABLE = True
     return True
+
+
+def _dummy_generation_allowed() -> bool:
+    mode = _dummy_mode()
+    if mode == "off":
+        return False
+    if mode == "on":
+        return True
+    return _gpt4all_reachable()
 
 
 def get_shared_model() -> Optional[GPT4All]:
@@ -168,28 +192,26 @@ def generate_alter_ego_response(
     persona: Optional[str] = None,
 ) -> str:
     mode = _dummy_mode()
-    dummy_enabled = _dummy_enabled()
-
-    if dummy_enabled:
     dummy_output = ""
 
-    if _dummy_enabled():
+    if _dummy_generation_allowed():
         log.debug("Using dummy generation path (mode=%s)", mode)
         try:
             log.info("Generating response with dummy engine (mode=%s)", mode)
             dummy = get_dummy_engine()
             out = dummy.generate(prompt, memory_used=memory_used, persona=persona)
-            if out.strip():
-                return out.strip()
-            log.debug("Dummy engine returned empty output; trying GPT4All fallback")
+            if isinstance(out, str) and out.strip():
+                dummy_output = out.strip()
+            else:
+                log.debug("Dummy engine returned empty output; trying GPT4All fallback")
         except Exception:
             log.exception("Dummy engine failure; attempting GPT4All fallback")
     else:
-        log.debug("Dummy engine disabled via ALTER_EGO_DUMMY_ONLY")
-            if isinstance(out, str):
-                dummy_output = out.strip()
-        except Exception:
-            log.exception("Dummy engine failure; attempting GPT4All fallback if available")
+        log.debug(
+            "Dummy generation disabled or unavailable (mode=%s, gpt4all_reachable=%s)",
+            mode,
+            _gpt4all_reachable(),
+        )
 
     if dummy_output:
         return dummy_output
