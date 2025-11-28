@@ -3,13 +3,15 @@
 
 from datetime import datetime, timezone
 import json
-from pathlib import Path
 
-SWITCH_LOG = Path("./alter_switch_log.chaos")
+from configuration import get_switch_log_path
+
+SWITCH_LOG = get_switch_log_path()
 
 class PersonaFronting:
     def __init__(self):
         self.current = None
+        print(f"Persona switch log: {SWITCH_LOG}")
 
     def front(self, persona, trigger_type="prompted", comment=""):
         timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
