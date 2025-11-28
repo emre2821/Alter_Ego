@@ -168,6 +168,11 @@ def generate_alter_ego_response(
     persona: Optional[str] = None,
 ) -> str:
     mode = _dummy_mode()
+    dummy_enabled = mode != "off"
+    llm_allowed = mode in {"off", "auto"}
+    dummy_output = ""
+
+    if dummy_enabled:
     dummy_enabled = _dummy_enabled()
 
     if dummy_enabled:
@@ -190,12 +195,23 @@ def generate_alter_ego_response(
         log.debug("Dummy engine disabled via ALTER_EGO_DUMMY_ONLY")
             if isinstance(out, str):
                 dummy_output = out.strip()
+            elif out:
+                log.warning(
+                    "Ignoring dummy output of unexpected type %s", type(out).__name__
+                )
         except Exception:
-            log.exception("Dummy engine failure; attempting GPT4All fallback if available")
+            if llm_allowed:
+                log.exception(
+                    "Dummy engine failure; attempting GPT4All fallback if available"
+                )
+            else:
+                log.exception(
+                    "Dummy engine failure; GPT4All fallback disabled (mode=%s)", mode
+                )
 
     if dummy_output:
         return dummy_output
-    if not _llm_allowed():
+    if not llm_allowed:
         log.debug("GPT4All generation disabled; returning fallback response (mode=%s)", mode)
         return "Hmm... I need a moment to gather myself."
 
