@@ -168,25 +168,29 @@ def generate_alter_ego_response(
     persona: Optional[str] = None,
 ) -> str:
     mode = _dummy_mode()
-    gpt4all_available = model is not None or _gpt4all_reachable()
-    dummy_allowed = mode == "on" or (mode == "auto" and gpt4all_available)
+    dummy_output = ""
 
-    if mode == "auto" and not gpt4all_available:
-        log.debug("Auto mode fallback: no GPT4All backend/model reachable; skipping dummy engine")
-
-    if dummy_allowed and _dummy_enabled():
+    if _dummy_enabled():
+        log.debug("Using dummy generation path (mode=%s)", mode)
         try:
             dummy = get_dummy_engine()
             out = dummy.generate(prompt, memory_used=memory_used, persona=persona)
-            if out.strip():
-                return out.strip()
+            if isinstance(out, str):
+                dummy_output = out.strip()
         except Exception:
-            log.exception("Dummy engine failure; attempting GPT4All fallback")
+            log.exception("Dummy engine failure; attempting GPT4All fallback if available")
+
+    if dummy_output:
+        return dummy_output
+    if not _llm_allowed():
+        log.debug("GPT4All generation disabled; returning fallback response (mode=%s)", mode)
+        return "Hmm... I need a moment to gather myself."
 
     injected = _build_injected_prompt(prompt, memory_used)
 
     engine = model or get_shared_model()
     if engine is not None:
+        log.debug("Using GPT4All generation path (mode=%s)", mode)
         try:
             out = engine.generate(injected, max_tokens=256)
             if isinstance(out, str) and out.strip():
@@ -194,6 +198,7 @@ def generate_alter_ego_response(
         except Exception as exc:
             log.warning("GPT4All generation failed: %s", exc)
 
+    log.debug("No GPT4All response available; returning fallback reply")
     return "Hmm... I need a moment to gather myself."
 
 
