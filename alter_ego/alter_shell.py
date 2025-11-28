@@ -47,9 +47,12 @@ class AlterShell:
             self._model = get_shared_model()
         except Exception:
             log.warning("Warm-start failed during model discovery/loading", exc_info=True)
+            self._model_warning = "Model discovery failed; check logs for details."
+            return
         else:
             if self._model is not None:
                 self._model_ready.set()
+                self._model_warning = None
                 log.info("LLM warm-start complete.")
                 return
 
@@ -58,39 +61,18 @@ class AlterShell:
                 get_dummy_engine()
             except Exception:
                 log.warning("Warm-start failed: dummy backend unavailable", exc_info=True)
+                self._model_warning = "Dummy backend unavailable; check logs for details."
             else:
+                # Intentionally avoid storing the dummy backend on self._model so the
+                # downstream call path continues to route through GPT4All when it
+                # eventually becomes available.
                 self._model_ready.set()
+                self._model_warning = None
                 log.info("Dummy-only mode active; warm-start complete without GPT4All.")
             return
 
-        log.warning("Warm-start deferred: no model ready; continuing to boot")
-            model = get_shared_model()
-        except Exception:
-            log.exception("Warm-start failed")
-            self._model_warning = "Model discovery failed; check logs for details."
-            return
-
-        self._model = model
-        if self._model is not None:
-            self._model_ready.set()
-            self._model_warning = None
-            log.info("LLM warm-start complete.")
-            return
-
-        dummy_ready = False
-        try:
-            dummy_ready = get_dummy_engine() is not None
-        except Exception:
-            log.exception("Dummy engine warm-start check failed")
-
-        if dummy_ready:
-            self._model_ready.set()
-            self._model_warning = None
-            log.info("Dummy engine available; skipping GPT4All warm-start")
-            return
-
         self._model_warning = "No model available yet; still booting backend."
-        log.warning("Warm-start could not locate a model; leaving shell in boot state.")
+        log.warning("Warm-start deferred: no model ready; continuing to boot")
 
     # ------------------------------------------------------------------
     def select_model(self, model_dir: str | None, model_name: str | None) -> None:
