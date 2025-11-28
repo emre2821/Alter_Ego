@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import os
 import threading
 from typing import Optional
 
@@ -55,7 +56,29 @@ class AlterShell:
 
     # ------------------------------------------------------------------
     def _warm_start(self) -> None:
+        dummy_mode = os.getenv("ALTER_EGO_DUMMY_ONLY", "auto").strip().lower()
+
         try:
+            self._model = get_shared_model()
+        except Exception:
+            log.warning("Warm-start failed during model discovery/loading", exc_info=True)
+        else:
+            if self._model is not None:
+                self._model_ready.set()
+                log.info("LLM warm-start complete.")
+                return
+
+        if dummy_mode in {"1", "true", "yes", "on"}:
+            try:
+                get_dummy_engine()
+            except Exception:
+                log.warning("Warm-start failed: dummy backend unavailable", exc_info=True)
+            else:
+                self._model_ready.set()
+                log.info("Dummy-only mode active; warm-start complete without GPT4All.")
+            return
+
+        log.warning("Warm-start deferred: no model ready; continuing to boot")
             model = get_shared_model()
         except Exception:
             log.exception("Warm-start failed")
