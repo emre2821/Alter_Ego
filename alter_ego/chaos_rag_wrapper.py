@@ -173,7 +173,9 @@ def generate_alter_ego_response(
     if dummy_enabled:
     dummy_output = ""
 
-    if _dummy_enabled():
+    dummy_can_run = mode == "on" or (mode == "auto" and _gpt4all_reachable())
+
+    if _dummy_enabled() and dummy_can_run:
         log.debug("Using dummy generation path (mode=%s)", mode)
         try:
             log.info("Generating response with dummy engine (mode=%s)", mode)
