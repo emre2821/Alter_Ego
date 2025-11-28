@@ -12,7 +12,9 @@ import os
 from pathlib import Path
 
 from alter_ego import configuration
-from . import configuration
+
+
+ECHO_LOG_PATH = configuration.get_log_path()
 
 
 log = logging.getLogger(__name__)
@@ -57,15 +59,18 @@ def autosave_prompt(prompt: str, echo_metadata: dict):
 
     # Ensure parent directory exists, if any
     if log_path.parent and not log_path.parent.exists():
+    log_path = Path(ECHO_LOG_PATH)
     default_log_path = configuration.APP_ROOT / "chaos_echo_log.chaos"
+
     if log_path == default_log_path:
         log.info("Using default echo log path: %s", log_path)
 
     # Ensure parent directory exists, if any
     p = log_path
+    p = Path(log_path)
     if p.parent and not p.parent.exists():
         try:
-            log_path.parent.mkdir(parents=True, exist_ok=True)
+            p.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             log.warning("Cannot create log dir: %s", e)
             return

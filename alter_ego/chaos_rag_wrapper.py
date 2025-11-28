@@ -168,31 +168,20 @@ def generate_alter_ego_response(
     persona: Optional[str] = None,
 ) -> str:
     mode = _dummy_mode()
-    dummy_enabled = mode != "off"
-    llm_allowed = mode in {"off", "auto"}
-    dummy_output = ""
-
-    if dummy_enabled:
     dummy_enabled = _dummy_enabled()
-
-    if dummy_enabled:
+    llm_allowed = _llm_allowed()
     dummy_output = ""
 
-    dummy_can_run = mode == "on" or (mode == "auto" and _gpt4all_reachable())
+    dummy_can_run = dummy_enabled and (
+        mode == "on" or (mode == "auto" and _gpt4all_reachable())
+    )
 
-    if _dummy_enabled() and dummy_can_run:
+    if dummy_can_run:
         log.debug("Using dummy generation path (mode=%s)", mode)
         try:
             log.info("Generating response with dummy engine (mode=%s)", mode)
             dummy = get_dummy_engine()
             out = dummy.generate(prompt, memory_used=memory_used, persona=persona)
-            if out.strip():
-                return out.strip()
-            log.debug("Dummy engine returned empty output; trying GPT4All fallback")
-        except Exception:
-            log.exception("Dummy engine failure; attempting GPT4All fallback")
-    else:
-        log.debug("Dummy engine disabled via ALTER_EGO_DUMMY_ONLY")
             if isinstance(out, str):
                 dummy_output = out.strip()
             elif out:
@@ -208,6 +197,13 @@ def generate_alter_ego_response(
                 log.exception(
                     "Dummy engine failure; GPT4All fallback disabled (mode=%s)", mode
                 )
+    else:
+        if not dummy_enabled:
+            log.debug("Dummy engine disabled via ALTER_EGO_DUMMY_ONLY")
+        elif mode == "auto":
+            log.debug("Dummy engine skipped; GPT4All backend unavailable in auto mode")
+        else:
+            log.debug("Dummy engine bypassed")
 
     if dummy_output:
         return dummy_output
