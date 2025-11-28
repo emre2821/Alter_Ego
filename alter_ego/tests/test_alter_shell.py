@@ -129,4 +129,4 @@ def test_warm_start_signals_ready_in_dummy_only_mode(monkeypatch):
     shell._warm_start()
 
     assert shell._model_ready.is_set() is True
-    assert len(dummy_calls) >= 1
+    assert dummy_calls
