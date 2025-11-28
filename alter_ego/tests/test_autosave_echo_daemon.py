@@ -9,7 +9,7 @@ def test_format_entry_whisper():
 
 
 def test_autosave_prompt_dir_error(monkeypatch, capsys, tmp_path):
-    monkeypatch.setattr(aed, "ECHO_LOG_PATH", str(tmp_path / "no_dir" / "log.chaos"))
+    monkeypatch.setattr(aed.configuration, "get_log_path", lambda: tmp_path / "no_dir" / "log.chaos")
     monkeypatch.setattr(aed.Path, "exists", lambda self: False)
 
     def boom(self, parents=False, exist_ok=False):

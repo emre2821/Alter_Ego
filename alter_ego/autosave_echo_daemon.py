@@ -7,10 +7,12 @@ Optionally triggers rituals or check-ins.
 """
 
 from datetime import datetime, timezone
-import os
+import logging
 from pathlib import Path
 
-ECHO_LOG_PATH = "chaos_echo_log.chaos"
+import configuration
+
+log = logging.getLogger(__name__)
 
 
 def format_chaos_entry(prompt: str, echo_metadata: dict) -> str:
@@ -42,8 +44,13 @@ def autosave_prompt(prompt: str, echo_metadata: dict):
     """
     entry = format_chaos_entry(prompt, echo_metadata)
 
+    log_path = configuration.get_log_path()
+    default_log_path = configuration.get_default_log_path()
+    if log_path == default_log_path:
+        log.info("Using default echo log path: %s", log_path)
+
     # Ensure parent directory exists, if any
-    p = Path(ECHO_LOG_PATH)
+    p = Path(log_path)
     if p.parent and not p.parent.exists():
         try:
             p.parent.mkdir(parents=True, exist_ok=True)
