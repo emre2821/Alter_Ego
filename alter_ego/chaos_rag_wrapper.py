@@ -171,6 +171,10 @@ def generate_alter_ego_response(
     dummy_enabled = _dummy_enabled()
 
     if dummy_enabled:
+    dummy_output = ""
+
+    if _dummy_enabled():
+        log.debug("Using dummy generation path (mode=%s)", mode)
         try:
             log.info("Generating response with dummy engine (mode=%s)", mode)
             dummy = get_dummy_engine()
@@ -182,11 +186,22 @@ def generate_alter_ego_response(
             log.exception("Dummy engine failure; attempting GPT4All fallback")
     else:
         log.debug("Dummy engine disabled via ALTER_EGO_DUMMY_ONLY")
+            if isinstance(out, str):
+                dummy_output = out.strip()
+        except Exception:
+            log.exception("Dummy engine failure; attempting GPT4All fallback if available")
+
+    if dummy_output:
+        return dummy_output
+    if not _llm_allowed():
+        log.debug("GPT4All generation disabled; returning fallback response (mode=%s)", mode)
+        return "Hmm... I need a moment to gather myself."
 
     injected = _build_injected_prompt(prompt, memory_used)
 
     engine = model or get_shared_model()
     if engine is not None:
+        log.debug("Using GPT4All generation path (mode=%s)", mode)
         try:
             log.info("Generating response with GPT4All backend")
             out = engine.generate(injected, max_tokens=256)
@@ -197,6 +212,7 @@ def generate_alter_ego_response(
     else:
         log.info("GPT4All backend unavailable; returning fallback message")
 
+    log.debug("No GPT4All response available; returning fallback reply")
     return "Hmm... I need a moment to gather myself."
 
 
