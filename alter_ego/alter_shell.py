@@ -5,10 +5,16 @@ from __future__ import annotations
 import inspect
 import logging
 import threading
+from typing import Optional
 
 from autosave_echo_daemon import autosave_prompt
 from alter_echo_response import AlterEchoResponse
-from chaos_rag_wrapper import generate_alter_ego_response, get_shared_model, set_model_selection
+from chaos_rag_wrapper import (
+    generate_alter_ego_response,
+    get_dummy_engine,
+    get_shared_model,
+    set_model_selection,
+)
 from configuration import get_memory_db_path
 from persona_fronting import PersonaFronting
 from sqlite_memory import add as mem_add, init_db, search
@@ -28,17 +34,40 @@ class AlterShell:
         self._model = None
         self._model_ready = threading.Event()
         self._supports_persona_kw: bool | None = None
+        self._model_warning: Optional[str] = None
 
         threading.Thread(target=self._warm_start, daemon=True).start()
 
     # ------------------------------------------------------------------
     def _warm_start(self) -> None:
         try:
-            self._model = get_shared_model()
-            self._model_ready.set()
-            log.info("LLM warm-start complete.")
+            model = get_shared_model()
         except Exception:
             log.exception("Warm-start failed")
+            self._model_warning = "Model discovery failed; check logs for details."
+            return
+
+        self._model = model
+        if self._model is not None:
+            self._model_ready.set()
+            self._model_warning = None
+            log.info("LLM warm-start complete.")
+            return
+
+        dummy_ready = False
+        try:
+            dummy_ready = get_dummy_engine() is not None
+        except Exception:
+            log.exception("Dummy engine warm-start check failed")
+
+        if dummy_ready:
+            self._model_ready.set()
+            self._model_warning = None
+            log.info("Dummy engine available; skipping GPT4All warm-start")
+            return
+
+        self._model_warning = "No model available yet; still booting backend."
+        log.warning("Warm-start could not locate a model; leaving shell in boot state.")
 
     # ------------------------------------------------------------------
     def select_model(self, model_dir: str | None, model_name: str | None) -> None:
@@ -47,6 +76,7 @@ class AlterShell:
         set_model_selection(model_dir, model_name)
         self._model = None
         self._model_ready.clear()
+        self._model_warning = None
         threading.Thread(target=self._warm_start, daemon=True).start()
 
     # ------------------------------------------------------------------
@@ -58,6 +88,8 @@ class AlterShell:
             mems = []
 
         if not self._model_ready.is_set():
+            if self._model_warning:
+                return f"Booting model… {self._model_warning}"
             return "Booting model… give me a few seconds."
 
         persona = self.fronting.get_active() or "Rhea"
