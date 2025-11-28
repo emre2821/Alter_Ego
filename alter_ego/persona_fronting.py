@@ -16,7 +16,6 @@ class PersonaFronting:
     def front(self, persona, trigger_type="prompted", comment=""):
         timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
         log_entry = [timestamp, persona, trigger_type, comment]
-        SWITCH_LOG.parent.mkdir(parents=True, exist_ok=True)
         with open(SWITCH_LOG, 'a', encoding='utf-8') as f:
             f.write(f"- {json.dumps(log_entry)}\n")
         self.current = persona
