@@ -1,4 +1,6 @@
 # tests/test_alter_shell.py
+import logging
+
 import alter_shell
 
 
@@ -95,3 +97,36 @@ def test_interact_retries_when_persona_kw_is_rejected(monkeypatch):
     assert calls[0] == {"persona": shell.fronting.get_active() or "Rhea"}
     assert calls[1] == {}
     assert shell._supports_persona_kw is False
+
+
+def test_warm_start_leaves_ready_unset_when_model_missing(monkeypatch, caplog):
+    caplog.set_level(logging.WARNING)
+    monkeypatch.setenv("ALTER_EGO_DUMMY_ONLY", "auto")
+    monkeypatch.setattr(alter_shell, "get_shared_model", lambda: None)
+
+    shell = alter_shell.AlterShell()
+    shell._model_ready.clear()
+    shell._warm_start()
+
+    assert shell._model_ready.is_set() is False
+    assert any("Warm-start deferred" in rec.message for rec in caplog.records)
+
+
+def test_warm_start_signals_ready_in_dummy_only_mode(monkeypatch):
+    monkeypatch.setenv("ALTER_EGO_DUMMY_ONLY", "on")
+    monkeypatch.setattr(alter_shell, "get_shared_model", lambda: None)
+
+    dummy_calls = []
+
+    def _dummy():
+        dummy_calls.append(True)
+        return object()
+
+    monkeypatch.setattr(alter_shell, "get_dummy_engine", _dummy)
+
+    shell = alter_shell.AlterShell()
+    shell._model_ready.clear()
+    shell._warm_start()
+
+    assert shell._model_ready.is_set() is True
+    assert dummy_calls
