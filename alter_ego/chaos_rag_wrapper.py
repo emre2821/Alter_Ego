@@ -208,9 +208,8 @@ def generate_alter_ego_response(
             log.exception("Dummy engine failure; attempting GPT4All fallback")
     else:
         log.debug(
-            "Dummy generation disabled or unavailable (mode=%s, gpt4all_reachable=%s)",
+            "Dummy generation disabled or unavailable (mode=%s)",
             mode,
-            _gpt4all_reachable(),
         )
 
     if dummy_output:
