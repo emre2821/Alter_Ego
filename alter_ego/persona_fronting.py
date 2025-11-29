@@ -4,22 +4,32 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
-from configuration import get_log_path, get_switch_log_path
+from configuration import get_switch_log_path
 
 class PersonaFronting:
     def __init__(self):
         self.current = None
-        self.switch_log = self._resolve_switch_log_path()
-        print(f"Persona switch log: {self.switch_log}")
+        self._switch_log: Optional[Path] = None
 
     @staticmethod
-    def _resolve_switch_log_path() -> Path:
-        switch_log = get_switch_log_path(create=False)
-        if switch_log is None:  # Defensive fallback; the helper always returns a Path.
-            switch_log = get_log_path()
+    def _resolve_switch_log_path(create: bool = False) -> Path:
+        switch_log = get_switch_log_path(create=create)
         switch_log.parent.mkdir(parents=True, exist_ok=True)
         return switch_log
+
+    @property
+    def switch_log(self) -> Path:
+        if self._switch_log is None:
+            self._switch_log = self._resolve_switch_log_path()
+            print(f"Persona switch log: {self._switch_log}")
+        return self._switch_log
+
+    def refresh_switch_log(self) -> Path:
+        self._switch_log = self._resolve_switch_log_path()
+        print(f"Persona switch log refreshed: {self._switch_log}")
+        return self._switch_log
 
     def front(self, persona, trigger_type="prompted", comment=""):
         timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
