@@ -6,7 +6,12 @@ Appends CHAOS-formatted entries into a rotating echo log.
 Optionally triggers rituals or check-ins.
 """
 
+import logging
 from datetime import datetime, timezone
+
+from . import configuration
+
+logger = logging.getLogger(__name__)
 import logging
 from pathlib import Path
 
@@ -55,6 +60,10 @@ def autosave_prompt(prompt: str, echo_metadata: dict):
     log_path = configuration.get_log_path()
     default_log_path = configuration.get_default_log_path()
     if log_path == default_log_path:
+        logger.info("Using default echo log path: %s", log_path)
+
+    # Ensure parent directory exists, if any
+    if log_path.parent and not log_path.parent.exists():
         log.info("Using default echo log path: %s", log_path)
 
     # Ensure parent directory exists, if any
@@ -79,7 +88,7 @@ def autosave_prompt(prompt: str, echo_metadata: dict):
     p = Path(log_path)
     if p.parent and not p.parent.exists():
         try:
-            p.parent.mkdir(parents=True, exist_ok=True)
+            log_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             log.warning("Cannot create log dir: %s", e)
             return

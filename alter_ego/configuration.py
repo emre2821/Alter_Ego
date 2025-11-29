@@ -147,6 +147,12 @@ def get_memory_db_path() -> Path:
     return APP_ROOT / "alter_ego_memory.db"
 
 
+def get_default_log_path() -> Path:
+    """Return the default autosave log file path."""
+
+    return APP_ROOT / "chaos_echo_log.chaos"
+
+
 def get_log_path() -> Path:
     """Return the autosave log file path."""
 
@@ -156,6 +162,7 @@ def get_log_path() -> Path:
     if (cfg_path := _path_from_config("log_path", "autosave_log")) is not None:
         return cfg_path
 
+    return get_default_log_path()
     return DEFAULT_LOG_PATH
 
 
