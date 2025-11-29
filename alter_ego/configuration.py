@@ -24,6 +24,8 @@ except Exception:  # pragma: no cover - handled by returning defaults
 APP_ROOT = Path(__file__).resolve().parent
 CONFIG_FILE = APP_ROOT / "alter_ego_config.yaml"
 
+DEFAULT_LOG_PATH = APP_ROOT / "chaos_echo_log.chaos"
+
 # Legacy fallback used by early Windows builds that shipped personas in a
 # fixed location on C:\.  We still honour it so existing installations do
 # not break when updating.
@@ -145,6 +147,12 @@ def get_memory_db_path() -> Path:
     return APP_ROOT / "alter_ego_memory.db"
 
 
+def get_default_log_path() -> Path:
+    """Return the default autosave log file path."""
+
+    return APP_ROOT / "chaos_echo_log.chaos"
+
+
 def get_log_path() -> Path:
     """Return the autosave log file path."""
 
@@ -154,7 +162,14 @@ def get_log_path() -> Path:
     if (cfg_path := _path_from_config("log_path", "autosave_log")) is not None:
         return cfg_path
 
-    return APP_ROOT / "chaos_echo_log.chaos"
+    return get_default_log_path()
+    return DEFAULT_LOG_PATH
+
+
+def get_default_log_path() -> Path:
+    """Return the default autosave log file path."""
+
+    return DEFAULT_LOG_PATH
 
 
 def get_switch_log_path(create: bool = True) -> Path:
@@ -186,6 +201,7 @@ def describe_data_locations() -> Dict[str, Path]:
 
 __all__ = [
     "describe_data_locations",
+    "get_default_log_path",
     "get_log_path",
     "get_memory_db_path",
     "get_model_name",
