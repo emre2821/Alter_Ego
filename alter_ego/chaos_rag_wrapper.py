@@ -144,9 +144,7 @@ def _dummy_generation_allowed() -> bool:
     mode = _dummy_mode()
     if mode == "off":
         return False
-    if mode == "on":
-        return True
-    return _gpt4all_reachable()
+    return True if mode == "on" else _gpt4all_reachable()
 
 
 def get_shared_model() -> Optional[GPT4All]:
