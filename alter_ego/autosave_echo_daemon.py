@@ -8,6 +8,9 @@ Optionally triggers rituals or check-ins.
 
 from datetime import datetime, timezone
 import logging
+from pathlib import Path
+
+import configuration
 import os
 from pathlib import Path
 
@@ -49,6 +52,12 @@ def autosave_prompt(prompt: str, echo_metadata: dict):
     """
     entry = format_chaos_entry(prompt, echo_metadata)
 
+    log_path = configuration.get_log_path()
+    default_log_path = configuration.get_default_log_path()
+    if log_path == default_log_path:
+        log.info("Using default echo log path: %s", log_path)
+
+    # Ensure parent directory exists, if any
     log_path = Path(configuration.get_log_path()).resolve()
     default_log_path = (configuration.APP_ROOT / "chaos_echo_log.chaos").resolve()
     log_path = configuration.get_log_path()
