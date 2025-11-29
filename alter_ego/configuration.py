@@ -24,6 +24,8 @@ except Exception:  # pragma: no cover - handled by returning defaults
 APP_ROOT = Path(__file__).resolve().parent
 CONFIG_FILE = APP_ROOT / "alter_ego_config.yaml"
 
+DEFAULT_LOG_PATH = APP_ROOT / "chaos_echo_log.chaos"
+
 # Legacy fallback used by early Windows builds that shipped personas in a
 # fixed location on C:\.  We still honour it so existing installations do
 # not break when updating.
@@ -161,6 +163,13 @@ def get_log_path() -> Path:
         return cfg_path
 
     return get_default_log_path()
+    return DEFAULT_LOG_PATH
+
+
+def get_default_log_path() -> Path:
+    """Return the default autosave log file path."""
+
+    return DEFAULT_LOG_PATH
 
 
 def get_switch_log_path(create: bool = True) -> Path:
