@@ -1,0 +1,2 @@
+[console_scripts]
+alter-ego = alter_ego.cli:main
