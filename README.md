@@ -6,6 +6,24 @@
 
 Alter/Ego is a compact voice companion for desktop workflows. It ships with a simple Python API and CLI so you can script speech in seconds.
 
+## Project Structure
+
+```
+/
+├── src/                    # Python application code
+│   └── alter_ego/          # Main package
+├── scripts/
+│   ├── powershell/         # PowerShell scripts
+│   └── batch/              # Batch scripts
+├── tests/                  # Test suite
+├── docs/                   # Documentation
+├── .github/                # GitHub configuration and workflows
+├── .gitignore
+├── README.md
+├── requirements.txt
+└── pyproject.toml
+```
+
 ## Installation
 
 ```bash

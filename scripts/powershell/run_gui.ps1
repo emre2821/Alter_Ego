@@ -1,19 +1,22 @@
-# C:\EdenOS_Origin\Alter_Ego\main\run_gui.ps1
+# scripts/powershell/run_gui.ps1 - Launcher for Alter/Ego GUI
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-Set-Location -LiteralPath $PSScriptRoot
+
+# Change to repository root (two levels up from scripts/powershell/)
+$RepoRoot = Join-Path $PSScriptRoot "..\..\"
+Set-Location -LiteralPath $RepoRoot
 
 # Logs
-$null = New-Item -ItemType Directory -Force -Path "$PSScriptRoot\logs"
+$null = New-Item -ItemType Directory -Force -Path "$RepoRoot\logs"
 $ts  = (Get-Date).ToString('yyyyMMdd_HHmmss')
-$log = Join-Path $PSScriptRoot "logs\run_$ts.log"
+$log = Join-Path $RepoRoot "logs\run_$ts.log"
 
 # Keep GPT4All on CPU; make output UTF-8
 $env:GPT4ALL_NO_CUDA = '1'
 $env:PYTHONUTF8      = '1'
 
 Write-Host "== Alter/Ego starting =="
-Write-Host "  Folder: $PSScriptRoot"
+Write-Host "  Folder: $RepoRoot"
 Write-Host "  Log:    $log"
 Write-Host ""
 
@@ -36,7 +39,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # Launch + tee to file
 Write-Host "[run] Launching Alter/Ego GUI..."
-$launchArgs = @('.\alter_ego_computer.py', 'launch')
+$launchArgs = @('src\alter_ego\alter_ego_computer.py', 'launch')
 if ($env:PERSONA_ROOT) {
   $launchArgs += @('--persona-root', $env:PERSONA_ROOT)
 }

@@ -43,7 +43,7 @@ Changelog = "https://github.com/Autumnus-Labs/AlterEgo/CHANGELOG.md"
 include-package-data = true
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["alter_ego", "alter_ego.*"]
 
 [tool.pytest.ini_options]
