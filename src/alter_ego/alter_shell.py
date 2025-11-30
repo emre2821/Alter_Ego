@@ -87,24 +87,6 @@ class AlterShell:
             return
 
         log.warning("Warm-start deferred: no model ready; continuing to boot")
-            model = get_shared_model()
-        except Exception:
-            log.exception("Warm-start failed")
-            self._model_warning = "Model discovery failed; check logs for details."
-            return
-
-        self._model = model
-        if self._model is not None:
-            self._mark_backend_ready(self._model, "LLM warm-start complete.")
-            return
-
-        dummy_backend = self._get_dummy_backend()
-        if dummy_backend is not None:
-            self._mark_backend_ready(dummy_backend, "Dummy engine available; skipping GPT4All warm-start")
-            return
-
-        self._model_warning = "No model available yet; still booting backend."
-        log.warning("Warm-start deferred: no model ready; continuing to boot")
 
     # ------------------------------------------------------------------
     def select_model(self, model_dir: str | None, model_name: str | None) -> None:

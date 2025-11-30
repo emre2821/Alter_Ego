@@ -189,19 +189,11 @@ def generate_alter_ego_response(
     model: Optional[GPT4All] = None,
     persona: Optional[str] = None,
 ) -> str:
+    """Generate a response using the dummy engine or GPT4All backend."""
     mode = _dummy_mode()
     dummy_output = ""
 
     if _dummy_generation_allowed():
-    dummy_enabled = _dummy_enabled()
-    llm_allowed = _llm_allowed()
-    dummy_output = ""
-
-    dummy_can_run = dummy_enabled and (
-        mode == "on" or (mode == "auto" and _gpt4all_reachable())
-    )
-
-    if dummy_can_run:
         log.debug("Using dummy generation path (mode=%s)", mode)
         try:
             log.info("Generating response with dummy engine (mode=%s)", mode)
@@ -214,36 +206,12 @@ def generate_alter_ego_response(
         except Exception:
             log.exception("Dummy engine failure; attempting GPT4All fallback")
     else:
-        log.debug(
-            "Dummy generation disabled or unavailable (mode=%s)",
-            mode,
-        )
-            if isinstance(out, str):
-                dummy_output = out.strip()
-            elif out:
-                log.warning(
-                    "Ignoring dummy output of unexpected type %s", type(out).__name__
-                )
-        except Exception:
-            if llm_allowed:
-                log.exception(
-                    "Dummy engine failure; attempting GPT4All fallback if available"
-                )
-            else:
-                log.exception(
-                    "Dummy engine failure; GPT4All fallback disabled (mode=%s)", mode
-                )
-    else:
-        if not dummy_enabled:
-            log.debug("Dummy engine disabled via ALTER_EGO_DUMMY_ONLY")
-        elif mode == "auto":
-            log.debug("Dummy engine skipped; GPT4All backend unavailable in auto mode")
-        else:
-            log.debug("Dummy engine bypassed")
+        log.debug("Dummy generation disabled or unavailable (mode=%s)", mode)
 
     if dummy_output:
         return dummy_output
-    if not llm_allowed:
+
+    if not _llm_allowed():
         log.debug("GPT4All generation disabled; returning fallback response (mode=%s)", mode)
         return "Hmm... I need a moment to gather myself."
 
