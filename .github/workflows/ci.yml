@@ -14,6 +14,10 @@ on:
       - "release/**"
       - "develop"
 
+# Restrict GITHUB_TOKEN permissions for security
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint
