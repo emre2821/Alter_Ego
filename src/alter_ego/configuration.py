@@ -150,7 +150,7 @@ def get_memory_db_path() -> Path:
 def get_default_log_path() -> Path:
     """Return the default autosave log file path."""
 
-    return APP_ROOT / "chaos_echo_log.chaos"
+    return DEFAULT_LOG_PATH
 
 
 def get_log_path() -> Path:
@@ -163,13 +163,6 @@ def get_log_path() -> Path:
         return cfg_path
 
     return get_default_log_path()
-    return DEFAULT_LOG_PATH
-
-
-def get_default_log_path() -> Path:
-    """Return the default autosave log file path."""
-
-    return DEFAULT_LOG_PATH
 
 
 def get_switch_log_path(create: bool = True) -> Path:
