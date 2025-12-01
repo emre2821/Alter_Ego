@@ -1,4 +1,4 @@
-.PHONY: help install dev lint test build clean
+.PHONY: help install dev lint test test-cov security build clean
 
 # Default target
 help:
@@ -8,6 +8,8 @@ help:
 	@echo "  make dev        Install with dev dependencies"
 	@echo "  make lint       Run linters"
 	@echo "  make test       Run tests"
+	@echo "  make test-cov   Run tests with coverage"
+	@echo "  make security   Run security scan"
 	@echo "  make build      Build package"
 	@echo "  make clean      Clean build artifacts"
 	@echo ""
@@ -24,10 +26,18 @@ lint:
 test:
 	pytest tests/ -v
 
+test-cov:
+	pytest tests/ -v --cov=src/alter_ego --cov-report=term-missing --cov-report=html
+
+security:
+	@echo "Running security scan (informational)..."
+	bandit -r src/ -ll -ii || true
+	@echo "Review output above for security issues."
+
 build:
 	python -m build
 
 clean:
-	rm -rf dist/ build/ *.egg-info
+	rm -rf dist/ build/ *.egg-info htmlcov/ .coverage coverage.xml
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true

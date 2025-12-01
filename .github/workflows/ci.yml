@@ -38,7 +38,35 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run flake8
-        run: flake8 src/ tests/
+        run: |
+          echo "🔍 Running flake8 style checks..."
+          flake8 src/ tests/ && echo "✅ Lint passed!" || (echo "❌ Lint failed. Please fix style issues." && exit 1)
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run bandit security scan
+        run: |
+          echo "🔒 Running bandit security analysis..."
+          # Run bandit with informational output (don't fail on existing issues)
+          # Known issues in legacy code are documented in SECURITY.md
+          bandit -r src/ -ll -ii -f txt || true
+          echo "⚠️ Review security scan output above for any new issues."
 
   test:
     name: Test
@@ -59,8 +87,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run tests
-        run: pytest tests/ -v --tb=short
+      - name: Run tests with coverage
+        run: |
+          echo "🧪 Running test suite with coverage..."
+          pytest tests/ -v --tb=short --cov=src/alter_ego --cov-report=term-missing --cov-report=xml
+          echo "✅ Tests completed!"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+        if: always()
 
   build:
     name: Build
@@ -80,7 +118,10 @@ jobs:
         run: python -m pip install --upgrade pip build
 
       - name: Build package
-        run: python -m build
+        run: |
+          echo "📦 Building package..."
+          python -m build
+          echo "✅ Build successful!"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

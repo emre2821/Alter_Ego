@@ -2,7 +2,9 @@
 
 > Lightweight text-to-speech / voice automation assistant
 
-[![Build Status](#)](#) [![PyPI](#)](#) [![License](#)](#)
+[![CI](https://github.com/emre2821/Alter_Ego/actions/workflows/ci.yml/badge.svg)](https://github.com/emre2821/Alter_Ego/actions/workflows/ci.yml)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Alter/Ego is a compact voice companion for desktop workflows. It ships with a simple Python API and CLI so you can script speech in seconds.
 

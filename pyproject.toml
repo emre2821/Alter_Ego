@@ -28,16 +28,18 @@ rag = [
 ]
 dev = [
     "pytest>=7.0,<8.0",
+    "pytest-cov>=4.1,<5.0",
     "flake8>=6.0,<7.0",
+    "bandit>=1.7,<2.0",
 ]
 
 [project.scripts]
 "alter-ego" = "alter_ego.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/Autumnus-Labs/AlterEgo"
-Documentation = "https://github.com/Autumnus-Labs/AlterEgo/docs"
-Changelog = "https://github.com/Autumnus-Labs/AlterEgo/CHANGELOG.md"
+Homepage = "https://github.com/emre2821/Alter_Ego"
+Documentation = "https://github.com/emre2821/Alter_Ego#readme"
+Changelog = "https://github.com/emre2821/Alter_Ego/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 include-package-data = true
