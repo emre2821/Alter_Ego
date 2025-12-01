@@ -22,7 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 rag = [
-    "chromadb>=0.4,<0.5",
+    "chromadb>=0.4,<1.4",
     "sentence-transformers>=2.2.0,<2.3.0",
     "transformers>=4.38,<4.40",
 ]
