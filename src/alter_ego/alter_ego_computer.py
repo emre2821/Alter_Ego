@@ -10,7 +10,6 @@ import os, sys, time, json, hashlib, threading, queue, re, textwrap, shutil, sub
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
-import typer
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -37,6 +36,13 @@ def parse_embed_model_name(model_name: str) -> Tuple[str, str]:
     return ("sentence-transformers", raw)
 
 # Optional imports guarded:
+try:
+    import typer
+    TYPER_OK = True
+except Exception:
+    typer = None  # type: ignore
+    TYPER_OK = False
+
 try:
     from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler
@@ -603,298 +609,304 @@ def suggest_upgrades(cfg: Config, bank: MemoryBank) -> List[str]:
 
     return suggestions
 
-# --------- CLI ----------
-app = typer.Typer(add_completion=False, no_args_is_help=True)
-
-def palette(cfg: Config):
-    return PALETTES.get(cfg.palette, PALETTES[DEFAULT_PALETTE])
-
-def banner(cfg: Config):
-    pal = palette(cfg)
-    console.print(Panel.fit(
-        "[b]Alter/Ego[/b]\nLocal RAG • MemoryDB • Dupe Scanner • Upgrades",
-        title="[b]Paradigm Eden[/b]", border_style=pal["accent"])
-    )
-
-@app.command()
-def init(
-    data: str = typer.Option("./data", help="Folder to ingest/watch"),
-    db: str = typer.Option("./alter_ego_db", help="ChromaDB persistence dir"),
-    palette_name: str = typer.Option(DEFAULT_PALETTE, help=f"One of: {', '.join(PALETTES.keys())}"),
-    embed_model: Optional[str] = typer.Option(
-        None,
-        help="Embedding model name. Use fastembed:MODEL to opt into fastembed.",
-    ),
-):
-    cfg_path = Path("alter_ego_config.yaml")
-    cfg = load_config(cfg_path)
-    cfg.data_dir = data
-    cfg.db_dir = db
-    if palette_name in PALETTES:
-        cfg.palette = palette_name
-    if embed_model:
-        try:
-            parse_embed_model_name(embed_model)
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(code=1)
-        cfg.embed_model_name = embed_model
-    Path(cfg.data_dir).mkdir(parents=True, exist_ok=True)
-    Path(cfg.db_dir).mkdir(parents=True, exist_ok=True)
-    save_config(cfg_path, cfg)
-    banner(cfg)
-    console.print(f"Config saved -> [cyan]{cfg_path}[/cyan]")
-    console.print(f"Data dir      -> [cyan]{cfg.data_dir}[/cyan]")
-    console.print(f"DB dir        -> [cyan]{cfg.db_dir}[/cyan]")
-
-@app.command()
-def ingest(
-    path: str = typer.Argument(..., help="File or folder to ingest"),
-    embed_model: Optional[str] = typer.Option(
-        None, help="Override embedding model. Use fastembed:MODEL for fastembed."
-    ),
-):
-    cfg = load_config(Path("alter_ego_config.yaml"))
-    if embed_model:
-        try:
-            parse_embed_model_name(embed_model)
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(code=1)
-        cfg.embed_model_name = embed_model
-    banner(cfg)
-    bank = MemoryBank(cfg)
-    embedder = Embedder(cfg.embed_model_name)
-    ingest_path(cfg, bank, embedder, Path(path))
-    # record a state note
-    save_state_note(bank, embedder, f"Ingested path {path} at {now_iso()}", "ingest")
-
-@app.command("watch")
-def watch_cmd(
-    path: str = typer.Argument(None, help="Folder to watch (defaults to config data_dir)"),
-    embed_model: Optional[str] = typer.Option(
-        None, help="Override embedding model. Use fastembed:MODEL for fastembed."
-    ),
-):
-    cfg = load_config(Path("alter_ego_config.yaml"))
-    if embed_model:
-        try:
-            parse_embed_model_name(embed_model)
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(code=1)
-        cfg.embed_model_name = embed_model
-    banner(cfg)
-    bank = MemoryBank(cfg)
-    embedder = Embedder(cfg.embed_model_name)
-    root = Path(path) if path else Path(cfg.data_dir)
-    watch_path(cfg, bank, embedder, root)
-
-@app.command()
-def ask(
-    question: str = typer.Argument(...),
-    backend: str = typer.Option(None, help="transformers | gpt4all | ollama"),
-    model_name: str = typer.Option(None, help="Model id or file (backend-specific)"),
-    max_tokens: int = typer.Option(512),
-    temperature: float = typer.Option(0.7),
-    embed_model: Optional[str] = typer.Option(
-        None, help="Override embedding model. Use fastembed:MODEL for fastembed."
-    ),
-):
-    cfg = load_config(Path("alter_ego_config.yaml"))
-    if backend: cfg.llm_backend = backend
-    if model_name: cfg.llm_model_name = model_name
-    if embed_model:
-        try:
-            parse_embed_model_name(embed_model)
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(code=1)
-        cfg.embed_model_name = embed_model
-    banner(cfg)
-    pal = palette(cfg)
-
-    bank = MemoryBank(cfg)
-    embedder = Embedder(cfg.embed_model_name)
-    ctx = retrieve_context(bank, embedder, question, cfg.top_k)
-    prompt = make_prompt(ctx, question)
-
-    console.print(Panel.fit("Retrieving + thinking...", border_style=pal["muted"]))
-    try:
-        llm = LLM(cfg.llm_backend, cfg.llm_model_name)
-        answer = llm.generate(prompt, max_tokens=max_tokens, temperature=temperature)
-    except Exception as e:
-        console.print(f"[red]LLM error:[/red] {e}")
-        return
-
-    console.print(Panel.fit(answer.strip(), title="Answer", border_style=pal["ok"], box=box.SQUARE))
-
-    # auto-save memory: brief note
-    memory_note = f"Q: {question}\nA: {answer[:600]}"
-    save_memory(bank, embedder, memory_note, tag="chat", source="ask")
-
-    # gentle check-in hook (very small heuristic)
-    if any(w in question.lower() for w in ["overwhelmed","stuck","tired","spiral","anxious","panic","can't","cannot"]):
-        console.print(f"[{pal['warn']}]um… hey. can we slow it down? want micro-steps or for me to carry the next step?[/]")
-
-@app.command("scan-dupes")
-def scan_dupes_cmd():
-    cfg = load_config(Path("alter_ego_config.yaml"))
-    banner(cfg)
-    bank = MemoryBank(cfg)
-    report = scan_dupes(cfg, bank)
-    pal = palette(cfg)
-
-    # filename dupes
-    t = Table(title="Filename Duplicates", box=box.SIMPLE_HEAVY)
-    t.add_column("Name", style=pal["title"])
-    t.add_column("#", style=pal["info"], justify="right")
-    t.add_column("Paths", style=pal["dim"])
-    if report["filename_dupes"]:
-        for name, paths in sorted(report["filename_dupes"].items(), key=lambda kv: -len(kv[1])):
-            t.add_row(name, str(len(paths)), "\n".join(paths[:5]) + ("..." if len(paths) > 5 else ""))
-    else:
-        t.add_row("—", "0", "No filename dupes found.")
-    console.print(t)
-
-    # exact dupes
-    t2 = Table(title="Exact Content Duplicates (SHA1)", box=box.SIMPLE_HEAVY)
-    t2.add_column("SHA1", style=pal["title"])
-    t2.add_column("#", style=pal["info"], justify="right")
-    t2.add_column("Paths", style=pal["dim"])
-    if report["exact_dupes"]:
-        for h, paths in sorted(report["exact_dupes"].items(), key=lambda kv: -len(kv[1])):
-            t2.add_row(h[:12]+"…", str(len(paths)), "\n".join(paths[:5]) + ("..." if len(paths) > 5 else ""))
-    else:
-        t2.add_row("—", "0", "No exact dupes found.")
-    console.print(t2)
-
-    console.print(Panel.fit(
-        f"Near-duplicates: cosine ≥ {report['near_dup_info']['threshold']}\n"
-        f"{report['near_dup_info']['note']}",
-        border_style=pal["muted"]))
-
-    # Save a state note and a friendly nudge
-    bank = MemoryBank(cfg)
-    embedder = Embedder(cfg.embed_model_name)
-    save_state_note(bank, embedder, f"Dupe scan at {now_iso()}", "dupe-scan")
-
-    if report["filename_dupes"]:
-        console.print(f"[{pal['warn']}]um… girl… you have {len(report['filename_dupes'])} filename groups with duplicates. consolidate? delete? or just list paths? and… you ok?[/]")
-
-@app.command()
-def consolidate(
-    strategy: str = typer.Option("newest", help="newest | oldest | keep_first"),
-    only_paths: bool = typer.Option(False, help="Just print plan; don’t delete")
-):
-    cfg = load_config(Path("alter_ego_config.yaml"))
-    banner(cfg)
-    bank = MemoryBank(cfg)
-    report = scan_dupes(cfg, bank)
-    consolidate_files(strategy=strategy, only_list=only_paths, filename_dupes=report["filename_dupes"])
-
-@app.command("list-dupes")
-def list_dupes(only_paths: bool = typer.Option(True, help="Only print paths")):
-    cfg = load_config(Path("alter_ego_config.yaml"))
-    banner(cfg)
-    bank = MemoryBank(cfg)
-    report = scan_dupes(cfg, bank)
-    pal = palette(cfg)
-    for name, paths in report["filename_dupes"].items():
-        console.print(Panel("\n".join(paths), title=f"{name} ({len(paths)})", border_style=pal["warn"]))
-    for h, paths in report["exact_dupes"].items():
-        console.print(Panel("\n".join(paths), title=f"SHA1:{h[:12]}… ({len(paths)})", border_style=pal["muted"]))
-
-@app.command("suggest")
-def suggest():
-    cfg = load_config(Path("alter_ego_config.yaml"))
-    banner(cfg)
-    bank = MemoryBank(cfg)
-    sugg = suggest_upgrades(cfg, bank)
-    if not sugg:
-        console.print("[green]No upgrade suggestions right now.[/green]")
-        return
-    for s in sugg:
-        console.print(f"• {s}")
-    # Auto-save
-    embedder = Embedder(cfg.embed_model_name)
-    save_memory(bank, embedder, "Upgrade suggestions:\n" + "\n".join(f"- {x}" for x in sugg), tag="upgrade", source="auto")
-
-@app.command("config")
-def config_cmd(
-    show: bool = typer.Option(True),
-    set_backend: Optional[str] = typer.Option(None, help="Set LLM backend."),
-    set_model: Optional[str] = typer.Option(None, help="Set LLM model name."),
-    set_palette: Optional[str] = typer.Option(None, help="Set CLI palette."),
-    set_embed_model: Optional[str] = typer.Option(
-        None, help="Set embedding model. Use fastembed:MODEL to opt into fastembed."
-    ),
-):
-    cfg_path = Path("alter_ego_config.yaml")
-    cfg = load_config(cfg_path)
-    changed = False
-    if set_backend:
-        if set_backend not in BACKENDS:
-            console.print(f"[red]Invalid backend. Choose from: {', '.join(BACKENDS)}[/red]")
-            raise typer.Exit(code=1)
-        cfg.llm_backend = set_backend; changed = True
-    if set_model:
-        cfg.llm_model_name = set_model; changed = True
-    if set_palette:
-        if set_palette not in PALETTES:
-            console.print(f"[red]Invalid palette. Choose from: {', '.join(PALETTES.keys())}[/red]")
-            raise typer.Exit(code=1)
-        cfg.palette = set_palette; changed = True
-    if set_embed_model:
-        try:
-            parse_embed_model_name(set_embed_model)
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(code=1)
-        cfg.embed_model_name = set_embed_model; changed = True
-    if changed:
+if TYPER_OK:
+    # --------- CLI ----------
+    app = typer.Typer(add_completion=False, no_args_is_help=True)
+    
+    def palette(cfg: Config):
+        return PALETTES.get(cfg.palette, PALETTES[DEFAULT_PALETTE])
+    
+    def banner(cfg: Config):
+        pal = palette(cfg)
+        console.print(Panel.fit(
+            "[b]Alter/Ego[/b]\nLocal RAG • MemoryDB • Dupe Scanner • Upgrades",
+            title="[b]Paradigm Eden[/b]", border_style=pal["accent"])
+        )
+    
+    @app.command()
+    def init(
+        data: str = typer.Option("./data", help="Folder to ingest/watch"),
+        db: str = typer.Option("./alter_ego_db", help="ChromaDB persistence dir"),
+        palette_name: str = typer.Option(DEFAULT_PALETTE, help=f"One of: {', '.join(PALETTES.keys())}"),
+        embed_model: Optional[str] = typer.Option(
+            None,
+            help="Embedding model name. Use fastembed:MODEL to opt into fastembed.",
+        ),
+    ):
+        cfg_path = Path("alter_ego_config.yaml")
+        cfg = load_config(cfg_path)
+        cfg.data_dir = data
+        cfg.db_dir = db
+        if palette_name in PALETTES:
+            cfg.palette = palette_name
+        if embed_model:
+            try:
+                parse_embed_model_name(embed_model)
+            except ValueError as e:
+                console.print(f"[red]{e}[/red]")
+                raise typer.Exit(code=1) from e
+            cfg.embed_model_name = embed_model
+        Path(cfg.data_dir).mkdir(parents=True, exist_ok=True)
+        Path(cfg.db_dir).mkdir(parents=True, exist_ok=True)
         save_config(cfg_path, cfg)
-        console.print("[green]Config updated.[/green]")
-    if show:
         banner(cfg)
-        console.print(yaml.safe_dump(cfg.model_dump(mode="json", exclude_none=True), sort_keys=False))
-
-
-@app.command("launch")
-def launch(
-    persona_root: Optional[Path] = typer.Option(None, help="Set PERSONA_ROOT before launching."),
-    dummy_only: bool = typer.Option(False, help="Force the dummy dialogue engine only."),
-    gpt4all_model: Optional[str] = typer.Option(None, help="Set GPT4ALL_MODEL to a specific .gguf file."),
-    enable_tts: Optional[bool] = typer.Option(None, help="Override ENABLE_TTS (1 for on, 0 for off)."),
-    theme: Optional[str] = typer.Option(None, help="Override GUI theme for this session."),
-):
-    """Launch the Alter/Ego GUI with helpful environment configuration."""
-
-    gui_path = Path(__file__).resolve().parent / "alter_ego_gui.py"
-    if not gui_path.exists():
-        console.print("[red]Could not locate alter_ego_gui.py next to this CLI.[/red]")
-        raise typer.Exit(code=1)
-
-    env = os.environ.copy()
-    if persona_root:
-        env["PERSONA_ROOT"] = str(persona_root)
-    if dummy_only:
-        env["ALTER_EGO_DUMMY_ONLY"] = "on"
-    if gpt4all_model:
-        env["GPT4ALL_MODEL"] = gpt4all_model
-    if enable_tts is not None:
-        env["ENABLE_TTS"] = "1" if enable_tts else "0"
-    if theme:
-        env["ALTER_EGO_THEME"] = theme
-
-    console.print("[cyan]Launching Alter/Ego GUI…[/cyan]")
-    console.print("[dim](Press Ctrl+C here to close once the window exits.)[/dim]")
-
-    try:
-        subprocess.run([sys.executable, str(gui_path)], env=env, check=True)
-    except subprocess.CalledProcessError as exc:
-        console.print(f"[red]GUI exited with error code {exc.returncode}.[/red]")
-        raise typer.Exit(code=exc.returncode)
-
-if __name__ == "__main__":
-    app()
+        console.print(f"Config saved -> [cyan]{cfg_path}[/cyan]")
+        console.print(f"Data dir      -> [cyan]{cfg.data_dir}[/cyan]")
+        console.print(f"DB dir        -> [cyan]{cfg.db_dir}[/cyan]")
+    
+    @app.command()
+    def ingest(
+        path: str = typer.Argument(..., help="File or folder to ingest"),
+        embed_model: Optional[str] = typer.Option(
+            None, help="Override embedding model. Use fastembed:MODEL for fastembed."
+        ),
+    ):
+        cfg = load_config(Path("alter_ego_config.yaml"))
+        if embed_model:
+            try:
+                parse_embed_model_name(embed_model)
+            except ValueError as e:
+                console.print(f"[red]{e}[/red]")
+                raise typer.Exit(code=1) from e
+            cfg.embed_model_name = embed_model
+        banner(cfg)
+        bank = MemoryBank(cfg)
+        embedder = Embedder(cfg.embed_model_name)
+        ingest_path(cfg, bank, embedder, Path(path))
+        # record a state note
+        save_state_note(bank, embedder, f"Ingested path {path} at {now_iso()}", "ingest")
+    
+    @app.command("watch")
+    def watch_cmd(
+        path: str = typer.Argument(None, help="Folder to watch (defaults to config data_dir)"),
+        embed_model: Optional[str] = typer.Option(
+            None, help="Override embedding model. Use fastembed:MODEL for fastembed."
+        ),
+    ):
+        cfg = load_config(Path("alter_ego_config.yaml"))
+        if embed_model:
+            try:
+                parse_embed_model_name(embed_model)
+            except ValueError as e:
+                console.print(f"[red]{e}[/red]")
+                raise typer.Exit(code=1) from e
+            cfg.embed_model_name = embed_model
+        banner(cfg)
+        bank = MemoryBank(cfg)
+        embedder = Embedder(cfg.embed_model_name)
+        root = Path(path) if path else Path(cfg.data_dir)
+        watch_path(cfg, bank, embedder, root)
+    
+    @app.command()
+    def ask(
+        question: str = typer.Argument(...),
+        backend: str = typer.Option(None, help="transformers | gpt4all | ollama"),
+        model_name: str = typer.Option(None, help="Model id or file (backend-specific)"),
+        max_tokens: int = typer.Option(512),
+        temperature: float = typer.Option(0.7),
+        embed_model: Optional[str] = typer.Option(
+            None, help="Override embedding model. Use fastembed:MODEL for fastembed."
+        ),
+    ):
+        cfg = load_config(Path("alter_ego_config.yaml"))
+        if backend: cfg.llm_backend = backend
+        if model_name: cfg.llm_model_name = model_name
+        if embed_model:
+            try:
+                parse_embed_model_name(embed_model)
+            except ValueError as e:
+                console.print(f"[red]{e}[/red]")
+                raise typer.Exit(code=1)
+            cfg.embed_model_name = embed_model
+        banner(cfg)
+        pal = palette(cfg)
+    
+        bank = MemoryBank(cfg)
+        embedder = Embedder(cfg.embed_model_name)
+        ctx = retrieve_context(bank, embedder, question, cfg.top_k)
+        prompt = make_prompt(ctx, question)
+    
+        console.print(Panel.fit("Retrieving + thinking...", border_style=pal["muted"]))
+        try:
+            llm = LLM(cfg.llm_backend, cfg.llm_model_name)
+            answer = llm.generate(prompt, max_tokens=max_tokens, temperature=temperature)
+        except Exception as e:
+            console.print(f"[red]LLM error:[/red] {e}")
+            return
+    
+        console.print(Panel.fit(answer.strip(), title="Answer", border_style=pal["ok"], box=box.SQUARE))
+    
+        # auto-save memory: brief note
+        memory_note = f"Q: {question}\nA: {answer[:600]}"
+        save_memory(bank, embedder, memory_note, tag="chat", source="ask")
+    
+        # gentle check-in hook (very small heuristic)
+        if any(w in question.lower() for w in ["overwhelmed","stuck","tired","spiral","anxious","panic","can't","cannot"]):
+            console.print(f"[{pal['warn']}]um… hey. can we slow it down? want micro-steps or for me to carry the next step?[/]")
+    
+    @app.command("scan-dupes")
+    def scan_dupes_cmd():
+        cfg = load_config(Path("alter_ego_config.yaml"))
+        banner(cfg)
+        bank = MemoryBank(cfg)
+        report = scan_dupes(cfg, bank)
+        pal = palette(cfg)
+    
+        # filename dupes
+        t = Table(title="Filename Duplicates", box=box.SIMPLE_HEAVY)
+        t.add_column("Name", style=pal["title"])
+        t.add_column("#", style=pal["info"], justify="right")
+        t.add_column("Paths", style=pal["dim"])
+        if report["filename_dupes"]:
+            for name, paths in sorted(report["filename_dupes"].items(), key=lambda kv: -len(kv[1])):
+                t.add_row(name, str(len(paths)), "\n".join(paths[:5]) + ("..." if len(paths) > 5 else ""))
+        else:
+            t.add_row("—", "0", "No filename dupes found.")
+        console.print(t)
+    
+        # exact dupes
+        t2 = Table(title="Exact Content Duplicates (SHA1)", box=box.SIMPLE_HEAVY)
+        t2.add_column("SHA1", style=pal["title"])
+        t2.add_column("#", style=pal["info"], justify="right")
+        t2.add_column("Paths", style=pal["dim"])
+        if report["exact_dupes"]:
+            for h, paths in sorted(report["exact_dupes"].items(), key=lambda kv: -len(kv[1])):
+                t2.add_row(h[:12]+"…", str(len(paths)), "\n".join(paths[:5]) + ("..." if len(paths) > 5 else ""))
+        else:
+            t2.add_row("—", "0", "No exact dupes found.")
+        console.print(t2)
+    
+        console.print(Panel.fit(
+            f"Near-duplicates: cosine ≥ {report['near_dup_info']['threshold']}\n"
+            f"{report['near_dup_info']['note']}",
+            border_style=pal["muted"]))
+    
+        # Save a state note and a friendly nudge
+        bank = MemoryBank(cfg)
+        embedder = Embedder(cfg.embed_model_name)
+        save_state_note(bank, embedder, f"Dupe scan at {now_iso()}", "dupe-scan")
+    
+        if report["filename_dupes"]:
+            console.print(f"[{pal['warn']}]um… girl… you have {len(report['filename_dupes'])} filename groups with duplicates. consolidate? delete? or just list paths? and… you ok?[/]")
+    
+    @app.command()
+    def consolidate(
+        strategy: str = typer.Option("newest", help="newest | oldest | keep_first"),
+        only_paths: bool = typer.Option(False, help="Just print plan; don’t delete")
+    ):
+        cfg = load_config(Path("alter_ego_config.yaml"))
+        banner(cfg)
+        bank = MemoryBank(cfg)
+        report = scan_dupes(cfg, bank)
+        consolidate_files(strategy=strategy, only_list=only_paths, filename_dupes=report["filename_dupes"])
+    
+    @app.command("list-dupes")
+    def list_dupes(only_paths: bool = typer.Option(True, help="Only print paths")):
+        cfg = load_config(Path("alter_ego_config.yaml"))
+        banner(cfg)
+        bank = MemoryBank(cfg)
+        report = scan_dupes(cfg, bank)
+        pal = palette(cfg)
+        for name, paths in report["filename_dupes"].items():
+            console.print(Panel("\n".join(paths), title=f"{name} ({len(paths)})", border_style=pal["warn"]))
+        for h, paths in report["exact_dupes"].items():
+            console.print(Panel("\n".join(paths), title=f"SHA1:{h[:12]}… ({len(paths)})", border_style=pal["muted"]))
+    
+    @app.command("suggest")
+    def suggest():
+        cfg = load_config(Path("alter_ego_config.yaml"))
+        banner(cfg)
+        bank = MemoryBank(cfg)
+        sugg = suggest_upgrades(cfg, bank)
+        if not sugg:
+            console.print("[green]No upgrade suggestions right now.[/green]")
+            return
+        for s in sugg:
+            console.print(f"• {s}")
+        # Auto-save
+        embedder = Embedder(cfg.embed_model_name)
+        save_memory(bank, embedder, "Upgrade suggestions:\n" + "\n".join(f"- {x}" for x in sugg), tag="upgrade", source="auto")
+    
+    @app.command("config")
+    def config_cmd(
+        show: bool = typer.Option(True),
+        set_backend: Optional[str] = typer.Option(None, help="Set LLM backend."),
+        set_model: Optional[str] = typer.Option(None, help="Set LLM model name."),
+        set_palette: Optional[str] = typer.Option(None, help="Set CLI palette."),
+        set_embed_model: Optional[str] = typer.Option(
+            None, help="Set embedding model. Use fastembed:MODEL to opt into fastembed."
+        ),
+    ):
+        cfg_path = Path("alter_ego_config.yaml")
+        cfg = load_config(cfg_path)
+        changed = False
+        if set_backend:
+            if set_backend not in BACKENDS:
+                console.print(f"[red]Invalid backend. Choose from: {', '.join(BACKENDS)}[/red]")
+                raise typer.Exit(code=1)
+            cfg.llm_backend = set_backend; changed = True
+        if set_model:
+            cfg.llm_model_name = set_model; changed = True
+        if set_palette:
+            if set_palette not in PALETTES:
+                console.print(f"[red]Invalid palette. Choose from: {', '.join(PALETTES.keys())}[/red]")
+                raise typer.Exit(code=1)
+            cfg.palette = set_palette; changed = True
+        if set_embed_model:
+            try:
+                parse_embed_model_name(set_embed_model)
+            except ValueError as e:
+                console.print(f"[red]{e}[/red]")
+                raise typer.Exit(code=1) from e
+            cfg.embed_model_name = set_embed_model
+            changed = True
+        if changed:
+            save_config(cfg_path, cfg)
+            console.print("[green]Config updated.[/green]")
+        if show:
+            banner(cfg)
+            console.print(yaml.safe_dump(cfg.model_dump(mode="json", exclude_none=True), sort_keys=False))
+    
+    
+    @app.command("launch")
+    def launch(
+        persona_root: Optional[Path] = typer.Option(None, help="Set PERSONA_ROOT before launching."),
+        dummy_only: bool = typer.Option(False, help="Force the dummy dialogue engine only."),
+        gpt4all_model: Optional[str] = typer.Option(None, help="Set GPT4ALL_MODEL to a specific .gguf file."),
+        enable_tts: Optional[bool] = typer.Option(None, help="Override ENABLE_TTS (1 for on, 0 for off)."),
+        theme: Optional[str] = typer.Option(None, help="Override GUI theme for this session."),
+    ):
+        """Launch the Alter/Ego GUI with helpful environment configuration."""
+    
+        gui_path = Path(__file__).resolve().parent / "alter_ego_gui.py"
+        if not gui_path.exists():
+            console.print("[red]Could not locate alter_ego_gui.py next to this CLI.[/red]")
+            raise typer.Exit(code=1)
+    
+        env = os.environ.copy()
+        if persona_root:
+            env["PERSONA_ROOT"] = str(persona_root)
+        if dummy_only:
+            env["ALTER_EGO_DUMMY_ONLY"] = "on"
+        if gpt4all_model:
+            env["GPT4ALL_MODEL"] = gpt4all_model
+        if enable_tts is not None:
+            env["ENABLE_TTS"] = "1" if enable_tts else "0"
+        if theme:
+            env["ALTER_EGO_THEME"] = theme
+    
+        console.print("[cyan]Launching Alter/Ego GUI…[/cyan]")
+        console.print("[dim](Press Ctrl+C here to close once the window exits.)[/dim]")
+    
+        try:
+            subprocess.run([sys.executable, str(gui_path)], env=env, check=True)
+        except subprocess.CalledProcessError as exc:
+            console.print(f"[red]GUI exited with error code {exc.returncode}.[/red]")
+            raise typer.Exit(code=exc.returncode)
+    
+    if __name__ == "__main__":
+        app()
+else:
+    app = None
+    if __name__ == "__main__":
+        console.print("[red]Typer is not installed; the CLI is unavailable.[/red]")
