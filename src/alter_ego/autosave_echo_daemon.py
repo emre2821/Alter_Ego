@@ -10,7 +10,10 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-import configuration
+if __package__:
+    from . import configuration
+else:
+    import configuration
 
 log = logging.getLogger(__name__)
 
@@ -58,6 +61,7 @@ def autosave_prompt(prompt: str, echo_metadata: dict):
             p.parent.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             log.warning("Cannot create log dir: %s", e)
+            print(f"[autosave_warning] {e}")
             return
 
     with open(p, "a", encoding="utf-8") as f:
