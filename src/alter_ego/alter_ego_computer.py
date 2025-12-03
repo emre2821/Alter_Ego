@@ -140,11 +140,11 @@ def load_config(cfg_path: Path) -> Config:
         data = yaml.safe_load(cfg_path.read_text())
         return Config(**data)
     cfg = Config()
-    cfg_path.write_text(yaml.safe_dump(cfg.dict(), sort_keys=False))
+    cfg_path.write_text(yaml.safe_dump(cfg.model_dump(), sort_keys=False))
     return cfg
 
 def save_config(cfg_path: Path, cfg: Config):
-    cfg_path.write_text(yaml.safe_dump(cfg.dict(), sort_keys=False))
+    cfg_path.write_text(yaml.safe_dump(cfg.model_dump(), sort_keys=False))
 
 def sha1_bytes(b: bytes) -> str:
     h = hashlib.sha1()
@@ -857,7 +857,7 @@ def config_cmd(
         console.print("[green]Config updated.[/green]")
     if show:
         banner(cfg)
-        console.print(yaml.safe_dump(cfg.dict(), sort_keys=False))
+        console.print(yaml.safe_dump(cfg.model_dump(), sort_keys=False))
 
 
 @app.command("launch")
