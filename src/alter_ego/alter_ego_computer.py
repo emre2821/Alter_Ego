@@ -857,8 +857,9 @@ if TYPER_OK:
                 parse_embed_model_name(set_embed_model)
             except ValueError as e:
                 console.print(f"[red]{e}[/red]")
-                raise typer.Exit(code=1)
-            cfg.embed_model_name = set_embed_model; changed = True
+                raise typer.Exit(code=1) from e
+            cfg.embed_model_name = set_embed_model
+            changed = True
         if changed:
             save_config(cfg_path, cfg)
             console.print("[green]Config updated.[/green]")
