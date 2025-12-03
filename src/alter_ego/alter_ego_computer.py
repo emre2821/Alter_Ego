@@ -644,7 +644,7 @@ if TYPER_OK:
                 parse_embed_model_name(embed_model)
             except ValueError as e:
                 console.print(f"[red]{e}[/red]")
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=1) from e
             cfg.embed_model_name = embed_model
         Path(cfg.data_dir).mkdir(parents=True, exist_ok=True)
         Path(cfg.db_dir).mkdir(parents=True, exist_ok=True)
