@@ -667,7 +667,7 @@ if TYPER_OK:
                 parse_embed_model_name(embed_model)
             except ValueError as e:
                 console.print(f"[red]{e}[/red]")
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=1) from e
             cfg.embed_model_name = embed_model
         banner(cfg)
         bank = MemoryBank(cfg)
