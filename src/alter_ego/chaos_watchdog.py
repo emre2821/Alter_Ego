@@ -1,10 +1,14 @@
 import os
 import time
-import yaml
 from pathlib import Path
 from alter_ego_computer import load_config, MemoryBank, Embedder, watch_path
 
 def load_symbolic_config(path: Path) -> dict:
+    try:
+        import yaml  # type: ignore
+    except Exception:
+        return {}
+
     if path.exists():
         with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
