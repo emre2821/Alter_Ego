@@ -36,7 +36,7 @@ def _normalize_phrases(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, (list, tuple, set)):
-        return [str(v) for v in value]
+        return [s for v in value if (s := str(v).strip())]
     if isinstance(value, str):
         parts = re.split(r"[;\n]", value)
         return [p.strip() for p in parts if p.strip()]
