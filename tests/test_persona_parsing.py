@@ -11,12 +11,24 @@ from chaos_parser_core import (
 
 
 def test_normalize_keywords_handles_list_and_string_and_none():
+    # list inputs are preserved
     assert _normalize_keywords(["blaze", "spark"]) == ["blaze", "spark"]
 
+    # delimited strings are split and trimmed
     keywords = _normalize_keywords("blaze, spark;ember")
     assert keywords == ["blaze", "spark", "ember"]
 
+    # None becomes an empty list
     assert _normalize_keywords(None) == []
+
+    # whitespace-only string yields no keywords
+    assert _normalize_keywords("   ") == []
+
+    # mixed list values are trimmed, whitespace-only entries dropped, and non-strings coerced
+    assert _normalize_keywords([" foo ", " ", 123]) == ["foo", "123"]
+
+    # non-list / non-string inputs are coerced to string and wrapped in a list
+    assert _normalize_keywords(12345) == ["12345"]
 
 
 def test_normalize_phrases_splits_on_semicolons_and_newlines():
