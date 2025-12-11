@@ -1,4 +1,11 @@
 import persona_fronting
+from chaos_parser_core import (
+    _fallback_parse_persona_fields,
+    _normalize_keywords,
+    _normalize_overrides,
+    _normalize_phrases,
+    parse_chaos_file,
+)
 from persona_fronting import PersonaFronting
 from persona_simulator import PersonaSimulator
 
@@ -46,3 +53,74 @@ def test_resolve_switch_log_path_respects_create_flag(tmp_path, monkeypatch):
     pf = PersonaFronting()
     pf.refresh_switch_log()
     assert target.parent.exists()
+
+
+def test_parse_chaos_file_merges_delegate_and_fallback(monkeypatch, tmp_path):
+    chaos_content = """[PERSONA]: Base Name
+[TONE]: mellow
+[KEYWORDS]: base, keywords
+[PHRASES]: hello;world
+[OVERRIDES]: {\"tone\": \"friendly\"}
+"""
+
+    chaos_file = tmp_path / "persona.chaos"
+    chaos_file.write_text(chaos_content, encoding="utf-8")
+
+    fallback_persona = _fallback_parse_persona_fields(chaos_content)
+    expected_normalized = {
+        "tone": fallback_persona.get("tone", "neutral"),
+        "keywords": _normalize_keywords(fallback_persona.get("keywords")),
+        "phrases": _normalize_phrases(fallback_persona.get("phrases")),
+        "overrides": _normalize_overrides(fallback_persona.get("overrides")),
+        "name": fallback_persona.get("name"),
+    }
+
+    delegated_result = {
+        "_blocks": {},
+        "tone": "delegated tone",  # should be overridden by normalized fallback field
+        "delegate_only_field": "value",
+    }
+
+    def fake_delegate(text: str):
+        return delegated_result
+
+    monkeypatch.setattr("chaos_parser_core._delegate_parse_with_lyss", fake_delegate)
+
+    result = parse_chaos_file(str(chaos_file))
+
+    assert result["delegate_only_field"] == "value"
+    assert result["tone"] == expected_normalized["tone"]
+    assert result["keywords"] == expected_normalized["keywords"]
+    assert result["phrases"] == expected_normalized["phrases"]
+    assert result["overrides"] == expected_normalized["overrides"]
+    assert result["name"] == expected_normalized["name"]
+
+
+def test_parse_chaos_file_uses_fallback_when_delegate_falsey(monkeypatch, tmp_path):
+    chaos_content = """[PERSONA]: Fallback Only
+[TONE]: focused
+[KEYWORDS]: only, fallback
+[PHRASES]: just;fallback
+[OVERRIDES]: {\"tone\": \"serious\"}
+"""
+
+    chaos_file = tmp_path / "persona_fallback_only.chaos"
+    chaos_file.write_text(chaos_content, encoding="utf-8")
+
+    monkeypatch.setattr("chaos_parser_core._delegate_parse_with_lyss", lambda _: None)
+
+    result = parse_chaos_file(str(chaos_file))
+
+    fallback_persona = _fallback_parse_persona_fields(chaos_content)
+    expected_normalized = {
+        "tone": fallback_persona.get("tone", "neutral"),
+        "keywords": _normalize_keywords(fallback_persona.get("keywords")),
+        "phrases": _normalize_phrases(fallback_persona.get("phrases")),
+        "overrides": _normalize_overrides(fallback_persona.get("overrides")),
+        "name": fallback_persona.get("name"),
+    }
+
+    assert result == {
+        **expected_normalized,
+        "_raw": chaos_content,
+    }
