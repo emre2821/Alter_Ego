@@ -60,6 +60,7 @@ def _fallback_parse_persona_fields(text: str) -> Dict[str, Any]:
     pattern = re.compile(r"\[\s*(?P<label>[^\]]+?)\s*\]\s*:\s*(?P<value>.*)")
     raw_fields: Dict[str, str] = {}
     for line in text.splitlines():
+        line = line.lstrip()
         if match := pattern.match(line):
             label = match.group("label").strip().lower()
             raw_fields[label] = match.group("value").strip()
