@@ -14,7 +14,7 @@ class PersonaFronting:
         self._switch_log: Optional[Path] = None
 
     @staticmethod
-    def _resolve_switch_log_path(create: bool = False) -> Path:
+    def _resolve_switch_log_path(create: bool = True) -> Path:
         """Resolve the persona switch log path.
 
         The `create` flag is passed through to ``get_switch_log_path``, which
