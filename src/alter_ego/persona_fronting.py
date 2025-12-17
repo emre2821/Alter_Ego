@@ -22,10 +22,6 @@ class PersonaFronting:
         """
 
         return get_switch_log_path(create=create)
-        switch_log = get_switch_log_path(create=create)
-        if create:
-            switch_log.parent.mkdir(parents=True, exist_ok=True)
-        return switch_log
 
     @property
     def switch_log(self) -> Path:

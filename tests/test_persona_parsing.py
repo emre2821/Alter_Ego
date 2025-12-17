@@ -2,6 +2,8 @@ import json
 
 import pytest
 
+import configuration
+
 from chaos_parser_core import (
     _fallback_parse_persona_fields,
     _normalize_keywords,
@@ -127,6 +129,41 @@ def test_resolve_switch_log_path_respects_create_flag(tmp_path, monkeypatch):
     pf = PersonaFronting()
     pf.refresh_switch_log()
     assert target.parent.exists()
+
+
+def test_switch_log_creates_custom_path_parent(monkeypatch, tmp_path):
+    custom_path = tmp_path / "nested" / "switch.chaos"
+    monkeypatch.setenv("ALTER_EGO_SWITCH_LOG", str(custom_path))
+
+    pf = PersonaFronting()
+
+    assert not custom_path.parent.exists()
+
+    resolved = pf.switch_log
+
+    assert resolved == custom_path
+    assert custom_path.parent.exists()
+
+
+def test_switch_log_creates_default_path_parent(monkeypatch, tmp_path):
+    monkeypatch.delenv("ALTER_EGO_SWITCH_LOG", raising=False)
+
+    root = tmp_path / "app_root"
+    monkeypatch.setattr(configuration, "APP_ROOT", root)
+    monkeypatch.setattr(configuration, "CONFIG_FILE", root / "alter_ego_config.yaml")
+    configuration.load_configuration.cache_clear()
+
+    pf = PersonaFronting()
+
+    expected = root / "alter_switch_log.chaos"
+    assert not expected.parent.exists()
+
+    resolved = pf.switch_log
+
+    assert resolved == expected
+    assert expected.parent.exists()
+
+    configuration.load_configuration.cache_clear()
 
 
 def test_parse_chaos_file_merges_delegate_and_fallback(monkeypatch, tmp_path):
