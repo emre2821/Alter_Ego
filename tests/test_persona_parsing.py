@@ -129,6 +129,20 @@ def test_resolve_switch_log_path_respects_create_flag(tmp_path, monkeypatch):
     assert target.parent.exists()
 
 
+def test_switch_log_creates_custom_path_parent(monkeypatch, tmp_path):
+    custom_path = tmp_path / "nested" / "switch.chaos"
+    monkeypatch.setenv("ALTER_EGO_SWITCH_LOG", str(custom_path))
+
+    pf = PersonaFronting()
+
+    assert not custom_path.parent.exists()
+
+    resolved = pf.switch_log
+
+    assert resolved == custom_path
+    assert custom_path.parent.exists()
+
+
 def test_parse_chaos_file_merges_delegate_and_fallback(monkeypatch, tmp_path):
     chaos_content = """[PERSONA]: Base Name
 [TONE]: mellow
