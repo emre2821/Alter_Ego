@@ -14,7 +14,7 @@ class PersonaFronting:
         self._switch_log: Optional[Path] = None
 
     @staticmethod
-    def _resolve_switch_log_path(create: bool = False) -> Path:
+    def _resolve_switch_log_path(create: bool = True) -> Path:
         """Resolve the persona switch log path.
 
         The `create` flag is passed through to ``get_switch_log_path``, which
@@ -22,10 +22,6 @@ class PersonaFronting:
         """
 
         return get_switch_log_path(create=create)
-        switch_log = get_switch_log_path(create=create)
-        if create:
-            switch_log.parent.mkdir(parents=True, exist_ok=True)
-        return switch_log
 
     @property
     def switch_log(self) -> Path:
