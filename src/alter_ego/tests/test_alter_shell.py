@@ -96,8 +96,10 @@ def test_interact_retries_when_persona_kw_is_rejected(monkeypatch):
 
     assert out == "final"
     assert calls, "generate_alter_ego_response should have been invoked"
+    assert all(isinstance(call, dict) for call in calls)
     # At least one attempt should have tried the persona kw before retrying.
-    assert any("persona" in call for call in calls) or len(calls) >= 1
+    assert any("persona" in call for call in calls)
+    assert len(calls) >= 2
     assert shell._supports_persona_kw is False
 
 
