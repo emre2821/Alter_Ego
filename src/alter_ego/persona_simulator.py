@@ -36,7 +36,7 @@ class PersonaSimulator:
         # search recursively to support shared persona roots
         for file in self.persona_dir.rglob("*.chaos"):
             data = parse_chaos_file(file)
-            name = data.get("name", file.stem)
+            name = data.get("name") or data.get("persona") or file.stem
             tone = data.get("tone", "neutral")
             keywords = data.get("keywords", [])
             phrases = data.get("phrases", [])

@@ -80,7 +80,6 @@ def _fallback_parse_persona_fields(text: str) -> Dict[str, Any]:
     }
 
 
-def _delegate_parse_with_lyss(text: str) -> Dict[str, Any]:
 def _delegate_parse_with_lyss(text: str) -> Dict[str, Any] | None:
     try:
         from Lyss.modules.chaos_parser_core import parse_chaos_block  # type: ignore
@@ -89,41 +88,6 @@ def _delegate_parse_with_lyss(text: str) -> Dict[str, Any] | None:
         return {"_blocks": blocks}
     except Exception:
         return None
-
-
-def _normalize_keywords(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, (list, tuple, set)):
-        return [str(v).strip() for v in value if str(v).strip()]
-    if isinstance(value, str):
-        parts = re.split(r"[;,]", value)
-        return [p.strip() for p in parts if p.strip()]
-    return []
-
-
-def _normalize_phrases(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, (list, tuple, set)):
-        return [s for v in value if (s := str(v).strip())]
-    if isinstance(value, str):
-        parts = re.split(r"[;\n]", value)
-        return [p.strip() for p in parts if p.strip()]
-    return []
-
-
-def _normalize_overrides(value: Any) -> Dict[str, str]:
-    if isinstance(value, dict):
-        return {str(k): str(v) for k, v in value.items()}
-    if isinstance(value, str):
-        try:
-            parsed = json.loads(value)
-            if isinstance(parsed, dict):
-                return {str(k): str(v) for k, v in parsed.items()}
-        except Exception:
-            pass
-    return {}
 
 
 def _extract_persona_fields(blocks: Any) -> Dict[str, Any]:
@@ -144,36 +108,6 @@ def _extract_persona_fields(blocks: Any) -> Dict[str, Any]:
     return fields
 
 
-def _fallback_parse_persona_fields(text: str) -> Dict[str, Any]:
-    fields: Dict[str, Any] = {}
-    patterns: Iterable[tuple[str, str]] = (
-        ("tone", r"^[\[]?TONE[\]]?\s*:\s*(.+)$"),
-        ("keywords", r"^[\[]?KEYWORDS[\]]?\s*:\s*(.+)$"),
-        ("phrases", r"^[\[]?PHRASES[\]]?\s*:\s*(.+)$"),
-        ("overrides", r"^[\[]?OVERRIDES[\]]?\s*:\s*(.+)$"),
-        ("name", r"^[\[]?PERSONA[\]]?\s*:\s*(.+)$"),
-    )
-
-    for line in text.splitlines():
-        for key, pattern in patterns:
-            match = re.match(pattern, line.strip(), flags=re.IGNORECASE)
-            if match:
-                fields[key] = match.group(1).strip()
-
-    if "tone" in fields:
-        fields["tone"] = str(fields["tone"])
-    if "keywords" in fields:
-        fields["keywords"] = _normalize_keywords(fields["keywords"])
-    if "phrases" in fields:
-        fields["phrases"] = _normalize_phrases(fields["phrases"])
-    if "overrides" in fields:
-        fields["overrides"] = _normalize_overrides(fields["overrides"])
-    if "name" in fields:
-        fields["name"] = str(fields["name"])
-
-    return fields
-
-
 def parse_chaos_file(path: str | Path) -> Dict[str, Any]:
     p = Path(path)
     if not p.exists():
@@ -183,11 +117,6 @@ def parse_chaos_file(path: str | Path) -> Dict[str, Any]:
     except Exception:
         return {"_error": "read_failure", "path": str(p)}
 
-    parsed_fields = _fallback_parse_persona_fields(text)
-    delegated = _delegate_parse_with_lyss(text)
-    if delegated:
-        return {**parsed_fields, **delegated}
-    return parsed_fields
     result: Dict[str, Any] = {}
     delegated = _delegate_parse_with_lyss(text)
     if delegated:
@@ -204,11 +133,9 @@ def parse_chaos_file(path: str | Path) -> Dict[str, Any]:
         "overrides": _normalize_overrides(persona_fields.get("overrides")),
     }
     name = persona_fields.get("name")
-    if name is not None:
-        normalized_fields["name"] = str(name)
+    normalized_fields["name"] = str(name) if name is not None else None
 
     result.update(normalized_fields)
     if not delegated:
         result.setdefault("_raw", text)
     return result
-

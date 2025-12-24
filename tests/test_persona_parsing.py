@@ -2,6 +2,8 @@ import json
 
 import pytest
 
+import configuration
+
 from chaos_parser_core import (
     _fallback_parse_persona_fields,
     _normalize_keywords,
@@ -49,6 +51,18 @@ def test_normalize_overrides_accepts_dict_and_json_string_and_invalid_json():
     parsed_invalid = _normalize_overrides(invalid_json)
     assert isinstance(parsed_invalid, dict)
     assert parsed_invalid == {}
+
+    none_overrides = _normalize_overrides(None)
+    assert isinstance(none_overrides, dict)
+    assert none_overrides == {}
+
+    non_dict_json = _normalize_overrides("[1, 2]")
+    assert isinstance(non_dict_json, dict)
+    assert non_dict_json == {}
+
+    non_string_input = _normalize_overrides(123)
+    assert isinstance(non_string_input, dict)
+    assert non_string_input == {}
 
 
 @pytest.mark.parametrize(
@@ -129,6 +143,41 @@ def test_resolve_switch_log_path_respects_create_flag(tmp_path, monkeypatch):
     assert target.parent.exists()
 
 
+def test_switch_log_creates_custom_path_parent(monkeypatch, tmp_path):
+    custom_path = tmp_path / "nested" / "switch.chaos"
+    monkeypatch.setenv("ALTER_EGO_SWITCH_LOG", str(custom_path))
+
+    pf = PersonaFronting()
+
+    assert not custom_path.parent.exists()
+
+    resolved = pf.switch_log
+
+    assert resolved == custom_path
+    assert custom_path.parent.exists()
+
+
+def test_switch_log_creates_default_path_parent(monkeypatch, tmp_path):
+    monkeypatch.delenv("ALTER_EGO_SWITCH_LOG", raising=False)
+
+    root = tmp_path / "app_root"
+    monkeypatch.setattr(configuration, "APP_ROOT", root)
+    monkeypatch.setattr(configuration, "CONFIG_FILE", root / "alter_ego_config.yaml")
+    configuration.load_configuration.cache_clear()
+
+    pf = PersonaFronting()
+
+    expected = root / "alter_switch_log.chaos"
+    assert not expected.parent.exists()
+
+    resolved = pf.switch_log
+
+    assert resolved == expected
+    assert expected.parent.exists()
+
+    configuration.load_configuration.cache_clear()
+
+
 def test_parse_chaos_file_merges_delegate_and_fallback(monkeypatch, tmp_path):
     chaos_content = """[PERSONA]: Base Name
 [TONE]: mellow
@@ -198,27 +247,3 @@ def test_parse_chaos_file_uses_fallback_when_delegate_falsey(monkeypatch, tmp_pa
         **expected_normalized,
         "_raw": chaos_content,
     }
-def test_normalize_overrides_accepts_dict_and_json_string_and_invalid_json():
-    overrides_dict = {"hello": "hiya", "yes": "yep"}
-    assert _normalize_overrides(overrides_dict) == overrides_dict
-
-    overrides_json = json.dumps(overrides_dict)
-    parsed = _normalize_overrides(overrides_json)
-    assert parsed == overrides_dict
-
-    invalid_json = "{not: valid"
-    parsed_invalid = _normalize_overrides(invalid_json)
-    assert isinstance(parsed_invalid, dict)
-    assert parsed_invalid == {}
-
-    none_overrides = _normalize_overrides(None)
-    assert isinstance(none_overrides, dict)
-    assert none_overrides == {}
-
-    non_dict_json = _normalize_overrides("[1, 2]")
-    assert isinstance(non_dict_json, dict)
-    assert non_dict_json == {}
-
-    non_string_input = _normalize_overrides(123)
-    assert isinstance(non_string_input, dict)
-    assert non_string_input == {}
