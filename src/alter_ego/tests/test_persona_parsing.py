@@ -3,13 +3,15 @@ import json
 import pytest
 
 import configuration
-
 from chaos_parser_core import (
     _fallback_parse_persona_fields,
     _normalize_keywords,
     _normalize_overrides,
     _normalize_phrases,
+    parse_chaos_file,
 )
+from persona_fronting import PersonaFronting
+from persona_simulator import PersonaSimulator
 
 
 def test_normalize_keywords_handles_list_and_string_and_none():
@@ -85,17 +87,6 @@ def test_fallback_parse_persona_fields_mixed_case_labels(label_variant):
     assert fields["keywords"] == ["blaze", "spark", "ember"]
     assert fields["phrases"] == ["Ignite now", "Feel the heat"]
     assert fields["overrides"] == {"hello": "hiya", "yes": "yep"}
-import persona_fronting
-from chaos_parser_core import (
-    _fallback_parse_persona_fields,
-    _normalize_keywords,
-    _normalize_overrides,
-    _normalize_phrases,
-    parse_chaos_file,
-)
-from alter_ego.chaos_parser_core import _normalize_overrides
-from persona_fronting import PersonaFronting
-from persona_simulator import PersonaSimulator
 
 
 def test_chaos_persona_attributes_applied(tmp_path):
@@ -123,6 +114,8 @@ def test_chaos_persona_attributes_applied(tmp_path):
 
 
 def test_resolve_switch_log_path_respects_create_flag(tmp_path, monkeypatch):
+    import persona_fronting
+
     target = tmp_path / "nested" / "switch.chaos"
 
     def fake_get_switch_log_path(create: bool = True):
