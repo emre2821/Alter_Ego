@@ -165,8 +165,12 @@ def get_log_path() -> Path:
     return get_default_log_path()
 
 
-def get_switch_log_path(create: bool = True) -> Path:
-    """Return the persona switch log file path."""
+def get_switch_log_path(create: bool = False) -> Path:
+    """Return the persona switch log file path.
+
+    When ``create`` is True, missing parent directories are created to ensure
+    the returned path is writable.
+    """
 
     if env := _env("ALTER_EGO_SWITCH_LOG"):
         path = _expand(env)
