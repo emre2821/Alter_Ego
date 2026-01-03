@@ -43,7 +43,8 @@ CONSTITUTION_SHA256 = "cd06f0ba7f331d363e1184a21f2d35427638f38e26ba1d329f85cc4c8
 def verify_constitution() -> None:
     if not CONSTITUTION_PATH.exists():
         raise RuntimeError("Eden constitution is missing")
-    # Normalize line endings so Git's CRLF translation doesn't trigger false positives
+    # Normalize line endings so Git's auto-CRLF conversion does not trigger
+    # false tamper detections on platforms like Windows.
     text = CONSTITUTION_PATH.read_text(encoding="utf-8")
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
     digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()

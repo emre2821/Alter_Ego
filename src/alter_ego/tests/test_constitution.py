@@ -24,9 +24,10 @@ def test_constitution_modified(monkeypatch, tmp_path):
 
 
 def test_constitution_crlf(monkeypatch, tmp_path):
-    crlf = tmp_path / "eden.constitution.agent.chaosrights"
-    content = aec.CONSTITUTION_PATH.read_text().replace("\n", "\r\n")
-    crlf.write_text(content)
-    monkeypatch.setattr(aec, "CONSTITUTION_PATH", crlf)
-    # Should not raise even though line endings differ
+    # CRLF line endings should not trigger a false tamper detection
+    orig_path = aec.CONSTITUTION_PATH
+    crlf_text = orig_path.read_text().replace("\n", "\r\n")
+    crlf_path = tmp_path / "eden.constitution.agent.chaosrights"
+    crlf_path.write_bytes(crlf_text.encode())
+    monkeypatch.setattr(aec, "CONSTITUTION_PATH", crlf_path)
     aec.verify_constitution()
