@@ -1,7 +1,8 @@
 # sqlite_memory.py — zero-dep memory store
-import sqlite3, time, os
+import sqlite3
+import time
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 def init_db(db_path: str):
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)

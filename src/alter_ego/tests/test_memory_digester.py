@@ -1,7 +1,6 @@
 # tests/test_memory_digester.py
 from memory_digester import MemoryDigester
 from persona_simulator import PersonaSimulator
-import os
 
 
 def test_memory_digest_log(tmp_path):

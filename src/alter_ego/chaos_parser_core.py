@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, Iterable
+from typing import Any, Dict
 
 
 def _normalize_keywords(raw: Any) -> list[str]:

@@ -4,7 +4,6 @@
 import os
 import time
 from pathlib import Path
-from chaos_parser_core import parse_chaos_file
 from persona_simulator import PersonaSimulator
 from datetime import datetime, timezone
 

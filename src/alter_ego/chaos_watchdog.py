@@ -1,5 +1,4 @@
 import os
-import time
 from pathlib import Path
 from alter_ego_computer import load_config, MemoryBank, Embedder, watch_path
 

@@ -5,9 +5,12 @@
 # License: MIT
 
 from __future__ import annotations
-import os, sys, time, json, hashlib, threading, queue, re, textwrap, shutil
+import os
+import time
+import hashlib
+import re
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 
 import typer
 from rich.console import Console
@@ -244,7 +247,9 @@ class LLM:
             # Return the tail after the prompt if present
             return text[len(prompt):].strip() if text.startswith(prompt) else text
         elif self.backend == "ollama":
-            import json as _json, urllib.request as _url, urllib.error as _err
+            import json as _json
+            import urllib.request as _url
+            import urllib.error as _err
             url = "http://localhost:11434/api/generate"
             payload = _json.dumps({"model": self.model_name, "prompt": prompt, "stream": False, "options": {"temperature": temperature}}).encode("utf-8")
             req = _url.Request(url, data=payload, headers={"Content-Type": "application/json"})

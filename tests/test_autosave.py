@@ -1,9 +1,6 @@
 """Unit tests for autosave_echo_daemon module."""
 
-from pathlib import Path
-from datetime import datetime, timezone
 
-import pytest
 
 import autosave_echo_daemon
 

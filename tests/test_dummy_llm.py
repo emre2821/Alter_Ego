@@ -1,8 +1,6 @@
 """Unit tests for dummy_llm module."""
 
-from pathlib import Path
 
-import pytest
 
 from dummy_llm import DummyLLM, DummyRule, DummyScriptLibrary, DEFAULT_DATA
 
