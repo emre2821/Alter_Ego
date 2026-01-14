@@ -8,10 +8,12 @@ import os
 from pathlib import Path
 from typing import Dict, Iterable
 
+from configuration import get_theme_root
+
 log = logging.getLogger("alter_ego_gui.themes")
 
 APP_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_THEME_DIR = APP_DIR / "themes"
+DEFAULT_THEME_DIR = get_theme_root()
 
 BUILTIN_THEMES: Dict[str, Dict[str, object]] = {
     "eden": {
@@ -71,7 +73,7 @@ def discover_theme_dir() -> Path:
     for legacy in LEGACY_THEME_DIRS:
         if legacy.exists():
             log.warning(
-                "Using legacy theme directory at %s; move themes next to main/ or set THEME_DIR.",
+                "Using legacy theme directory at %s; move themes into assets/themes or set THEME_DIR.",
                 legacy,
             )
             return legacy

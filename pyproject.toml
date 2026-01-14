@@ -44,6 +44,15 @@ Changelog = "https://github.com/emre2821/Alter_Ego/blob/main/CHANGELOG.md"
 [tool.setuptools]
 include-package-data = true
 
+[tool.setuptools.package-data]
+alter_ego = [
+    "assets/**/*.chaos",
+    "assets/**/*.json",
+    "assets/**/*.jsonl",
+    "assets/**/*.yaml",
+    "assets/eden.constitution.agent.chaosrights",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["alter_ego", "alter_ego.*"]

@@ -59,21 +59,21 @@
    or, from the CLI steward, launch with helpful environment toggles:
 
    ```bash
-   python alter_ego_computer.py launch --persona-root ./personas --dummy-only
+   python alter_ego_computer.py launch --persona-root ./assets/personas --dummy-only
    ```
 
 3. **Begin interacting.** The assistant will respond with adaptive tone and whisper when it detects emotional load.
 
 ## Default Data Locations
 
-Alter/Ego now centralizes its runtime paths through `main/configuration.py`. The helper reads `alter_ego_config.yaml` and allows every entry to be overridden via environment variables. The table below lists the defaults that ship with the project.
+Alter/Ego now centralizes its runtime paths through `configuration.py`. The helper reads `assets/config/alter_ego_config.yaml` and allows every entry to be overridden via environment variables. The table below lists the defaults that ship with the project.
 
 | Purpose | Default location | Override |
 | --- | --- | --- |
-| Personas | `main/personas/` | Set `PERSONA_ROOT` or edit `alter_ego_config.yaml` |
-| GPT4All models | `main/models/` (created on launch) | Set `GPT4ALL_MODEL_DIR`/`GPT4ALL_MODELS_DIR` |
-| Memory database | `main/alter_ego_memory.db` | Set `MEMORY_DB` or update `db_path` in `alter_ego_config.yaml` |
-| Autosave echo log | `main/chaos_echo_log.chaos` | Set `ALTER_EGO_LOG_PATH` |
+| Personas | `assets/personas/` | Set `PERSONA_ROOT` or edit `assets/config/alter_ego_config.yaml` |
+| GPT4All models | `assets/models/` (created on launch) | Set `GPT4ALL_MODEL_DIR`/`GPT4ALL_MODELS_DIR` |
+| Memory database | `assets/alter_ego_memory.db` | Set `MEMORY_DB` or update `db_path` in `assets/config/alter_ego_config.yaml` |
+| Autosave echo log | `assets/logs/chaos_echo_log.chaos` | Set `ALTER_EGO_LOG_PATH` |
 
 When the configured folders are empty the GUI now offers in-app hints (with README links) pointing to the sections that explain how to populate them.
 
@@ -85,13 +85,13 @@ Alter/Ego now accepts ONNX-based embeddings through [`fastembed`](https://github
 pip install fastembed
 ```
 
-Then either edit `alter_ego_config.yaml` or export `ALTER_EGO_EMBED_MODEL` before launch so it reads, for example, `fastembed:BAAI/bge-small-en-v1.5`. When you use the `fastembed:` prefix, PyTorch and `sentence-transformers` are no longer required; you may safely remove them from `requirements.txt` or your environment to keep the install tiny.
+Then either edit `assets/config/alter_ego_config.yaml` or export `ALTER_EGO_EMBED_MODEL` before launch so it reads, for example, `fastembed:BAAI/bge-small-en-v1.5`. When you use the `fastembed:` prefix, PyTorch and `sentence-transformers` are no longer required; you may safely remove them from `requirements.txt` or your environment to keep the install tiny.
 
 ### Dummy Dialogue Engine
 
 Alter/Ego now wakes with a deterministic "dummy" companion so sessions can begin without downloading any GPT models.
 
-* Scripts live in `datasets/alterego/dummy_playbooks.yaml`. Tweak or extend them to teach new rituals or tones.
+* Scripts live in `assets/datasets/alterego/dummy_playbooks.yaml`. Tweak or extend them to teach new rituals or tones.
 * Set `ALTER_EGO_DUMMY_SCRIPT=/path/to/custom.yaml` to load an alternate script bundle.
 * To force GPT4All instead, export `ALTER_EGO_DUMMY_ONLY=off` before launching.
 * If you want only the dummy engine (never touching GPT files), use `ALTER_EGO_DUMMY_ONLY=on`.
@@ -109,9 +109,9 @@ An example screenshot is hosted externally at [this image](https://via.placehold
 
 ### Themes
 
-Alter/Ego automatically loads custom palettes from `main/themes/`, the folder that sits beside `alter_ego_gui.py`.
+Alter/Ego automatically loads custom palettes from `assets/themes/`, the folder that ships alongside the GUI.
 Set the `THEME_DIR` environment variable if you want to point at an alternate directory.
-Each `.json` file should define keys like `bg`, `text_bg`, `text_fg`, `user_fg`, and `alter_fg` (see the bundled examples in `main/themes/`).
+Each `.json` file should define keys like `bg`, `text_bg`, `text_fg`, `user_fg`, and `alter_fg` (see the bundled examples in `assets/themes/`).
 If no JSON themes exist at launch, the GUI logs a notice and falls back to its built-in styles such as `eden`, `dark`, and `light`.
 You can override the palette for a single session by setting `ALTER_EGO_THEME` or passing `--theme` to `python alter_ego_computer.py launch`.
 
@@ -123,12 +123,12 @@ You can override the palette for a single session by setting `ALTER_EGO_THEME` o
 
 ### GPT4All LLMs
 - Recommended starter: [DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf](https://huggingface.co/TheBloke/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf?download=1). It balances quality with a small footprint and runs well on CPUs.
-- Download the file and copy it to `main/models/` (create the folder if it does not exist). You can also point the GUI to a different directory via **Models → Change folder…**.
+- Download the file and copy it to `assets/models/` (create the folder if it does not exist). You can also point the GUI to a different directory via **Models → Change folder…**.
 - Launch the GUI, open the **Models** menu, and select the `.gguf` file you just added. The status banner will confirm the selection.
 
 ### Recommended Starter Model
 
-If you are spinning up Alter/Ego for the first time, start with [`DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf`](https://huggingface.co/TheBloke/DeepSeek-R1-Distill-Qwen-1.5B-GGUF). Drop the file into your models directory (see the table above), then open **Models →** the filename inside the GUI to activate it. The same model name is included in `alter_ego_config.yaml` so headless launches pick it automatically once the file is present.
+If you are spinning up Alter/Ego for the first time, start with [`DeepSeek-R1-Distill-Qwen-1.5B-Q4_0.gguf`](https://huggingface.co/TheBloke/DeepSeek-R1-Distill-Qwen-1.5B-GGUF). Drop the file into your models directory (see the table above), then open **Models →** the filename inside the GUI to activate it. The same model name is included in `assets/config/alter_ego_config.yaml` so headless launches pick it automatically once the file is present.
 
 ### Embedding Models
 - Uses `sentence-transformers` models like `all-MiniLM-L6-v2`.
@@ -137,10 +137,11 @@ If you are spinning up Alter/Ego for the first time, start with [`DeepSeek-R1-Di
 ### Directory Layout
 ```
 Alter_Ego/
-  main/
-    models/            # drop GPT4All .gguf files here
-    personas/          # persona configs
-    alter_ego_memory.db  # SQLite memory database
+  src/alter_ego/
+    assets/
+      models/            # drop GPT4All .gguf files here
+      personas/          # persona configs
+      alter_ego_memory.db  # SQLite memory database
 ```
 
 ## File Structure
@@ -153,24 +154,24 @@ Alter_Ego/
 * `persona_fronting.py` — Tracks and retrieves current fronted persona
 * `persona_registry.py` — Maintains list and metadata of all known personas
 * `persona_builder.py` — CLI wizard to create new identities
-* `/personas/` — Directory for persona config files and echo style preferences
+* `/assets/personas/` — Directory for persona config files and echo style preferences
 
 ### Persona Simulation
 
-Persona definitions live under the directory reported by `configuration.get_persona_root()` (by default `main/personas/`). Each persona may be expressed as `.chaos`, `.mirror.json`, or `.json`. You can point Alter/Ego at an existing persona library by setting `PERSONA_ROOT` or editing `alter_ego_config.yaml`. When no personas are detected the GUI now shows a banner with a direct link back to this section of the README.
+Persona definitions live under the directory reported by `configuration.get_persona_root()` (by default `assets/personas/`). Each persona may be expressed as `.chaos`, `.mirror.json`, or `.json`. You can point Alter/Ego at an existing persona library by setting `PERSONA_ROOT` or editing `assets/config/alter_ego_config.yaml`. When no personas are detected the GUI now shows a banner with a direct link back to this section of the README.
 
 ---
 
 ## Storage & Persistence
 
 * **Memory Files** — Saved as `.chaos` logs using symbolic syntax
-* **Memory DB** — Embedding store in `alter_ego_memory.db`. Override the default location by exporting `MEMORY_DB` or editing `alter_ego_config.yaml`.
+* **Memory DB** — Embedding store in `assets/alter_ego_memory.db`. Override the default location by exporting `MEMORY_DB` or editing `assets/config/alter_ego_config.yaml`.
 * **Personas** — Defined in `.json` and `.mirror` formats
 * **Echo Logs** — Captures emotional states, fronting history, tremor patterns
 
 ## Configuring symbolic paths
 
-Edit `symbolic_config.yaml` to point symbolic path sets like `threads`, `tender`, or `sacred` to your own folders.
+Edit `assets/config/symbolic_config.yaml` to point symbolic path sets like `threads`, `tender`, or `sacred` to your own folders.
 Paths may use `~` or environment variables such as `${PROJECTS}` so the file can move between systems.
 During ingestion or watchdog runs, any listed directories that do not exist are skipped automatically.
 
@@ -200,14 +201,14 @@ No internet or remote calls. Runs entirely on your machine for privacy, safety, 
 ---
 
 ## Environment Variables
-- `MEMORY_DB` – override path to the SQLite memory store. Defaults to `alter_ego_memory.db` (see table above).
-- `THEME_DIR` – directory containing JSON theme files. Defaults to `main/themes` beside the GUI.
+- `MEMORY_DB` – override path to the SQLite memory store. Defaults to `assets/alter_ego_memory.db` (see table above).
+- `THEME_DIR` – directory containing JSON theme files. Defaults to `assets/themes`.
 - `PERSONA_ROOT` – folder scanned for `.mirror.json` or `.chaos` persona files.
 - `GPT4ALL_MODEL_DIR` / `GPT4ALL_MODELS_DIR` – folder holding `.gguf` models. The GUI shows the active directory in **Models →**.
 - `GPT4ALL_MODEL` – preferred `.gguf` filename when auto-selecting a model.
-- `ALTER_EGO_THEME` – force a theme for the next launch without editing `gui_config.json`.
-- `MEMORY_DB` – override path to the SQLite memory store. Defaults to `main/alter_ego_memory.db`.
-- `THEME_DIR` – directory containing JSON theme files. Defaults to `main/themes`.
+- `ALTER_EGO_THEME` – force a theme for the next launch without editing `assets/config/gui_config.json`.
+- `MEMORY_DB` – override path to the SQLite memory store. Defaults to `assets/alter_ego_memory.db`.
+- `THEME_DIR` – directory containing JSON theme files. Defaults to `assets/themes`.
 - `PERSONA_ROOT` – optional folder scanned for `.mirror.json` or `.chaos` persona files.
 - `ENABLE_TTS` – set to `0` to disable text-to-speech.
 ---

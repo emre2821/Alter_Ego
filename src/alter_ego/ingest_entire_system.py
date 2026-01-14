@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from alter_ego_computer import load_config, MemoryBank, Embedder, ingest_path
+from configuration import get_config_path, get_symbolic_config_path
 
 def load_symbolic_config(path: Path) -> dict:
     try:
@@ -31,8 +32,8 @@ def should_ignore(path: str, cfg, symbolic_cfg: dict) -> bool:
     return any(Path(path).match(glob) for glob in ignore_globs)
 
 def main():
-    cfg = load_config(Path("alter_ego_config.yaml"))
-    symbolic_cfg = load_symbolic_config(Path("symbolic_config.yaml"))
+    cfg = load_config(get_config_path())
+    symbolic_cfg = load_symbolic_config(get_symbolic_config_path())
     roots = resolve_symbolic_paths(symbolic_cfg)
 
     bank = MemoryBank(cfg)

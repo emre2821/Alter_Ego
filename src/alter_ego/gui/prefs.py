@@ -9,10 +9,11 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict
 
+from configuration import get_gui_config_path
+
 log = logging.getLogger("alter_ego_gui.prefs")
 
-APP_DIR = Path(__file__).resolve().parent.parent
-CONFIG_PATH = APP_DIR / "gui_config.json"
+CONFIG_PATH = get_gui_config_path()
 
 _DEFAULT_PREFS: Dict[str, Any] = {
     "theme": "eden",

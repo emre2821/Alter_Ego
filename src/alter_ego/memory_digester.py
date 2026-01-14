@@ -4,6 +4,7 @@
 import os
 import time
 from pathlib import Path
+from configuration import get_persona_root
 from persona_simulator import PersonaSimulator
 from datetime import datetime, timezone
 
@@ -45,7 +46,7 @@ class MemoryDigester:
 
 # Example usage (remove or wrap for GUI integration)
 if __name__ == "__main__":
-    sim = PersonaSimulator("./personas")
+    sim = PersonaSimulator(get_persona_root())
     digester = MemoryDigester("./memorybank", sim, pace=1.0)
     digester.walk_folder("Naoto")
     digester.save_log()

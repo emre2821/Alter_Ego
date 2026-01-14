@@ -6,9 +6,10 @@ from tkinter import scrolledtext
 from pathlib import Path
 import pyttsx3
 from alter_ego_computer import load_config, MemoryBank, Embedder, LLM, make_prompt, retrieve_context, save_memory
+from configuration import get_config_path
 
 # === Load configuration and initialize backend ===
-cfg = load_config(Path("alter_ego_config.yaml"))
+cfg = load_config(get_config_path())
 bank = MemoryBank(cfg)
 embedder = Embedder(cfg.embed_model_name)
 llm = LLM(cfg.llm_backend, cfg.llm_model_name)

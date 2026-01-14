@@ -4,14 +4,14 @@ Alter/Ego supports configuration through YAML files and environment variables. E
 
 ## Configuration File
 
-Place a file named `alter_ego_config.yaml` in the package directory (`src/alter_ego/`) to customize settings.
+Place a file named `alter_ego_config.yaml` in the package config directory (`src/alter_ego/assets/config/`) to customize settings.
 
 ```yaml
 # Example alter_ego_config.yaml
-persona_root: ./personas
+persona_root: ./assets/personas
 models_dir: ./models
 memory_db: ./alter_ego_memory.db
-log_path: ./chaos_echo_log.chaos
+log_path: ./assets/logs/chaos_echo_log.chaos
 llm_model_name: your-model-name.gguf
 ```
 
@@ -23,8 +23,8 @@ Copy the `.env.example` file from the repository root to `.env` and customize as
 |----------|-------------|---------|
 | `GPT4ALL_MODEL_DIR` | Path to GPT4All models directory | `~/.local/share/nomic.ai/GPT4All` |
 | `GPT4ALL_MODEL` | Specific model filename to load | None |
-| `PERSONA_ROOT` | Directory containing persona definitions | `./personas` |
-| `ALTER_EGO_LOG_PATH` | Path to autosave echo log file | `./chaos_echo_log.chaos` |
+| `PERSONA_ROOT` | Directory containing persona definitions | `./assets/personas` |
+| `ALTER_EGO_LOG_PATH` | Path to autosave echo log file | `./assets/logs/chaos_echo_log.chaos` |
 | `ALTER_EGO_SWITCH_LOG` | Path to persona switch log file | `./alter_switch_log.chaos` |
 | `MEMORY_DB` | Path to SQLite memory database | `./alter_ego_memory.db` |
 | `ALTER_EGO_DUMMY_ONLY` | Use dummy LLM backend (`auto`, `on`, `off`) | `auto` |
