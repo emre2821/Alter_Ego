@@ -89,7 +89,8 @@ def _default_assets_root() -> Path:
         return _expand(env)
     if env := _env("ASSETS_ROOT"):
         return _expand(env)
-    return ASSETS_ROOT if ASSETS_ROOT.exists() else APP_ROOT
+    # Default to the standard assets/ directory; callers can decide whether to create it.
+    return ASSETS_ROOT
 
 
 def get_assets_root(create: bool = True) -> Path:
