@@ -22,23 +22,17 @@ except Exception:  # pragma: no cover - handled by returning defaults
     yaml = None  # type: ignore
 
 APP_ROOT = Path(__file__).resolve().parent
-ASSETS_DIRNAME = "assets"
-DEFAULT_CONFIG_FILENAME = "alter_ego_config.yaml"
-DEFAULT_SYMBOLIC_CONFIG_FILENAME = "symbolic_config.yaml"
-DEFAULT_GUI_CONFIG_FILENAME = "gui_config.json"
-DEFAULT_CONSTITUTION_FILENAME = "eden.constitution.agent.chaosrights"
-DEFAULT_DATASET_DIRNAME = "datasets"
-DEFAULT_THEME_DIRNAME = "themes"
-DEFAULT_PERSONA_DIRNAME = "personas"
+ASSETS_ROOT = APP_ROOT / "assets"
+CONFIG_DIR = ASSETS_ROOT / "config"
+DATASETS_DIR = ASSETS_ROOT / "datasets"
+THEMES_DIR = ASSETS_ROOT / "themes"
+CONFIG_FILE = CONFIG_DIR / "alter_ego_config.yaml"
+SYMBOLIC_CONFIG_FILE = CONFIG_DIR / "symbolic_config.yaml"
+GUI_CONFIG_FILE = CONFIG_DIR / "gui_config.json"
+CONSTITUTION_PATH = ASSETS_ROOT / "eden.constitution.agent.chaosrights"
 
-ASSETS_ROOT = APP_ROOT / ASSETS_DIRNAME
-CONFIG_FILE = APP_ROOT / DEFAULT_CONFIG_FILENAME
-CONFIG_PATH = CONFIG_FILE
-SYMBOLIC_CONFIG_PATH = APP_ROOT / DEFAULT_SYMBOLIC_CONFIG_FILENAME
-GUI_CONFIG_PATH = APP_ROOT / DEFAULT_GUI_CONFIG_FILENAME
-CONSTITUTION_PATH = APP_ROOT / DEFAULT_CONSTITUTION_FILENAME
-
-DEFAULT_LOG_PATH = APP_ROOT / "chaos_echo_log.chaos"
+LOGS_DIR = ASSETS_ROOT / "logs"
+DEFAULT_LOG_PATH = LOGS_DIR / "chaos_echo_log.chaos"
 
 # Legacy fallback used by early Windows builds that shipped personas in a
 # fixed location on C:\.  We still honour it so existing installations do
@@ -208,8 +202,10 @@ def get_persona_root(create: bool = True) -> Path:
     if LEGACY_PERSONA_ROOT.exists():
         return LEGACY_PERSONA_ROOT
 
-    legacy = APP_ROOT / DEFAULT_PERSONA_DIRNAME
-    return _resolve_assets_subdir(DEFAULT_PERSONA_DIRNAME, legacy, create=create)
+    fallback = ASSETS_ROOT / "personas"
+    if create:
+        fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
 
 
 def get_models_dir(create: bool = True) -> Path:
@@ -233,7 +229,7 @@ def get_models_dir(create: bool = True) -> Path:
     if legacy.exists():
         return legacy
 
-    fallback = APP_ROOT / "models"
+    fallback = ASSETS_ROOT / "models"
     if create:
         fallback.mkdir(parents=True, exist_ok=True)
     return fallback
@@ -263,7 +259,7 @@ def get_memory_db_path() -> Path:
     if (cfg_path := _path_from_config("memory_db", "db_path")) is not None:
         return cfg_path
 
-    return APP_ROOT / "alter_ego_memory.db"
+    return ASSETS_ROOT / "alter_ego_memory.db"
 
 
 def get_default_log_path() -> Path:
@@ -308,7 +304,7 @@ def describe_data_locations() -> Dict[str, Path]:
     """Return a mapping of important runtime paths for documentation."""
 
     return {
-        "assets_root": get_assets_root(create=False),
+        "assets_root": ASSETS_ROOT,
         "personas": get_persona_root(create=False),
         "models": get_models_dir(create=False),
         "datasets": get_dataset_root(create=False),
@@ -318,39 +314,51 @@ def describe_data_locations() -> Dict[str, Path]:
     }
 
 
-def load_config(path: Optional[Path] = None) -> Dict[str, Any]:
-    """Load the YAML config file from the configured path."""
+def get_assets_root() -> Path:
+    """Return the root directory for bundled assets."""
 
-    config_path = path or get_config_path()
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    if yaml is None or not config_path.exists():
-        return {}
-
-    try:
-        loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        log.warning("Failed to parse %s: %s", config_path, exc)
-        return {}
-
-    return loaded or {}
+    return ASSETS_ROOT
 
 
-def save_config(data: Dict[str, Any], path: Optional[Path] = None) -> None:
-    """Persist configuration data to disk as YAML."""
+def get_config_path() -> Path:
+    """Return the main configuration YAML path."""
 
-    config_path = path or get_config_path()
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    if yaml is None:
-        log.warning("PyYAML is unavailable; cannot save %s", config_path)
-        return
+    return CONFIG_FILE
 
-    config_path.write_text(
-        yaml.safe_dump(data, sort_keys=False),
-        encoding="utf-8",
-    )
+
+def get_symbolic_config_path() -> Path:
+    """Return the symbolic configuration YAML path."""
+
+    return SYMBOLIC_CONFIG_FILE
+
+
+def get_gui_config_path() -> Path:
+    """Return the GUI preference JSON path."""
+
+    return GUI_CONFIG_FILE
+
+
+def get_dataset_root() -> Path:
+    """Return the root directory for bundled datasets."""
+
+    return DATASETS_DIR
+
+
+def get_theme_root() -> Path:
+    """Return the root directory for bundled themes."""
+
+    return THEMES_DIR
+
+
+def get_constitution_path() -> Path:
+    """Return the Eden constitution path."""
+
+    return CONSTITUTION_PATH
 
 
 __all__ = [
+    "ASSETS_ROOT",
+    "CONFIG_DIR",
     "describe_data_locations",
     "get_assets_root",
     "get_config_path",
@@ -366,7 +374,6 @@ __all__ = [
     "get_symbolic_config_path",
     "get_switch_log_path",
     "get_theme_root",
-    "load_config",
     "load_configuration",
     "save_config",
 ]

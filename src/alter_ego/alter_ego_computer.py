@@ -24,6 +24,8 @@ from rich import box
 from pydantic import BaseModel
 import yaml
 
+from configuration import get_config_path, get_constitution_path
+
 EMBED_IMPORT_HINTS = {
     "fastembed": "fastembed",
     "sentence_transformers": "sentence-transformers",
@@ -60,7 +62,7 @@ BACKENDS = {"transformers", "gpt4all", "ollama"}
 
 console = Console()
 
-CONSTITUTION_PATH = Path(__file__).resolve().parent / "eden.constitution.agent.chaosrights"
+CONSTITUTION_PATH = get_constitution_path()
 CONSTITUTION_SHA256 = "cd06f0ba7f331d363e1184a21f2d35427638f38e26ba1d329f85cc4c8b201494"
 
 
@@ -151,10 +153,12 @@ def load_config(cfg_path: Path) -> Config:
         data = yaml.safe_load(cfg_path.read_text())
         return Config(**data)
     cfg = Config()
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(yaml.safe_dump(cfg.model_dump(mode="json", exclude_none=True), sort_keys=False))
     return cfg
 
 def save_config(cfg_path: Path, cfg: Config):
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(yaml.safe_dump(cfg.model_dump(mode="json", exclude_none=True), sort_keys=False))
 
 def sha1_bytes(b: bytes) -> str:
@@ -640,7 +644,7 @@ if TYPER_OK:
             help="Embedding model name. Use fastembed:MODEL to opt into fastembed.",
         ),
     ):
-        cfg_path = Path("alter_ego_config.yaml")
+        cfg_path = get_config_path()
         cfg = load_config(cfg_path)
         cfg.data_dir = data
         cfg.db_dir = db
@@ -668,7 +672,7 @@ if TYPER_OK:
             None, help="Override embedding model. Use fastembed:MODEL for fastembed."
         ),
     ):
-        cfg = load_config(Path("alter_ego_config.yaml"))
+        cfg = load_config(get_config_path())
         if embed_model:
             try:
                 parse_embed_model_name(embed_model)
@@ -690,7 +694,7 @@ if TYPER_OK:
             None, help="Override embedding model. Use fastembed:MODEL for fastembed."
         ),
     ):
-        cfg = load_config(Path("alter_ego_config.yaml"))
+        cfg = load_config(get_config_path())
         if embed_model:
             try:
                 parse_embed_model_name(embed_model)
@@ -715,7 +719,7 @@ if TYPER_OK:
             None, help="Override embedding model. Use fastembed:MODEL for fastembed."
         ),
     ):
-        cfg = load_config(Path("alter_ego_config.yaml"))
+        cfg = load_config(get_config_path())
         if backend: cfg.llm_backend = backend
         if model_name: cfg.llm_model_name = model_name
         if embed_model:
@@ -753,7 +757,7 @@ if TYPER_OK:
     
     @app.command("scan-dupes")
     def scan_dupes_cmd():
-        cfg = load_config(Path("alter_ego_config.yaml"))
+        cfg = load_config(get_config_path())
         banner(cfg)
         bank = MemoryBank(cfg)
         report = scan_dupes(cfg, bank)
@@ -801,7 +805,7 @@ if TYPER_OK:
         strategy: str = typer.Option("newest", help="newest | oldest | keep_first"),
         only_paths: bool = typer.Option(False, help="Just print plan; don’t delete")
     ):
-        cfg = load_config(Path("alter_ego_config.yaml"))
+        cfg = load_config(get_config_path())
         banner(cfg)
         bank = MemoryBank(cfg)
         report = scan_dupes(cfg, bank)
@@ -809,7 +813,7 @@ if TYPER_OK:
     
     @app.command("list-dupes")
     def list_dupes(only_paths: bool = typer.Option(True, help="Only print paths")):
-        cfg = load_config(Path("alter_ego_config.yaml"))
+        cfg = load_config(get_config_path())
         banner(cfg)
         bank = MemoryBank(cfg)
         report = scan_dupes(cfg, bank)
@@ -821,7 +825,7 @@ if TYPER_OK:
     
     @app.command("suggest")
     def suggest():
-        cfg = load_config(Path("alter_ego_config.yaml"))
+        cfg = load_config(get_config_path())
         banner(cfg)
         bank = MemoryBank(cfg)
         sugg = suggest_upgrades(cfg, bank)
@@ -844,7 +848,7 @@ if TYPER_OK:
             None, help="Set embedding model. Use fastembed:MODEL to opt into fastembed."
         ),
     ):
-        cfg_path = Path("alter_ego_config.yaml")
+        cfg_path = get_config_path()
         cfg = load_config(cfg_path)
         changed = False
         if set_backend:

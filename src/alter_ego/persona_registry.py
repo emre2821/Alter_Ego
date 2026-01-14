@@ -4,7 +4,9 @@
 import json
 from pathlib import Path
 
-REGISTRY_PATH = Path("./personas/persona_registry.json")
+from configuration import get_persona_root
+
+REGISTRY_PATH = get_persona_root() / "persona_registry.json"
 
 class PersonaRegistry:
     def __init__(self):
@@ -41,5 +43,5 @@ class PersonaRegistry:
 
 if __name__ == "__main__":
     pr = PersonaRegistry()
-    pr.register("Naoto", "./personas/Naoto.chaos", "analytical")
+    pr.register("Naoto", str(get_persona_root() / "Naoto.chaos"), "analytical")
     print(pr.list_personas())

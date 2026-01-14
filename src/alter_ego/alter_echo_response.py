@@ -21,8 +21,6 @@ class AlterEchoResponse:
     def __init__(self, persona_dir: str | Path | None = None) -> None:
         root = Path(persona_dir) if persona_dir is not None else get_persona_root()
         root = Path(root)
-        if not root.exists():
-            root = Path(__file__).resolve().parent / "personas"
         self.simulator = PersonaSimulator(root)
         self.fronting = PersonaFronting()
 

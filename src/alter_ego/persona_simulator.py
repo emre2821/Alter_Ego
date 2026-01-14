@@ -3,6 +3,8 @@
 
 import json
 from pathlib import Path
+
+from configuration import get_persona_root
 # Use local adapter which can delegate to Lyss if available
 from chaos_parser_core import parse_chaos_file
 if __package__:
@@ -25,16 +27,10 @@ class Persona:
         return styled + f"\n-- [{self.name}]"
 
 class PersonaSimulator:
-    def __init__(self, persona_dir=None):
+    def __init__(self, persona_dir: str | Path | None = None):
         if persona_dir is None:
             persona_dir = get_persona_root()
-        # Resolve persona_dir relative to this file if the provided path doesn't exist
-        p = Path(persona_dir)
-        if not p.exists():
-            alt = Path(__file__).resolve().parent / p
-            if alt.exists():
-                p = alt
-        self.persona_dir = p
+        self.persona_dir = Path(persona_dir)
         self.personas = self.load_all_personas()
 
     def load_all_personas(self):
@@ -68,6 +64,6 @@ class PersonaSimulator:
 
 # === Example ===
 if __name__ == "__main__":
-    sim = PersonaSimulator("./personas")
+    sim = PersonaSimulator()
     sample = "I think we should try something else."
     print(sim.simulate("Rhea", sample))

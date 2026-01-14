@@ -1,6 +1,6 @@
 """Deterministic dialogue engine used when no external LLM is desired.
 
-The module loads persona-aware scripts from `datasets/alterego/dummy_playbooks.yaml`
+The module loads persona-aware scripts from `assets/datasets/alterego/dummy_playbooks.yaml`
 (and falls back to the in-code defaults when the file is missing).  It exposes a
 `DummyLLM` class with a `generate` method that mirrors the minimal surface of the
 GPT4All API used inside the project.
@@ -12,9 +12,11 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
-import logging
+
+from configuration import get_dataset_root
 
 try:  # Prefer PyYAML when available
     import yaml  # type: ignore
@@ -27,6 +29,7 @@ else:
     from configuration import get_dataset_root
 
 log = logging.getLogger("dummy_llm")
+
 
 DATASET_PATH = get_dataset_root() / "alterego" / "dummy_playbooks.yaml"
 

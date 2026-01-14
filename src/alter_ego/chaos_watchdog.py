@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from alter_ego_computer import load_config, MemoryBank, Embedder, watch_path
+from configuration import get_config_path, get_symbolic_config_path
 
 def load_symbolic_config(path: Path) -> dict:
     try:
@@ -23,8 +24,8 @@ def resolve_watch_root(symbolic_cfg: dict) -> Path:
     return Path.home()
 
 def main():
-    cfg = load_config(Path("alter_ego_config.yaml"))
-    symbolic_cfg = load_symbolic_config(Path("symbolic_config.yaml"))
+    cfg = load_config(get_config_path())
+    symbolic_cfg = load_symbolic_config(get_symbolic_config_path())
     cfg.ignore_globs.extend(symbolic_cfg.get("symbolic_paths", {}).get("ignored", []))
     watch_root = resolve_watch_root(symbolic_cfg)
 
