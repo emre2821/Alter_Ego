@@ -7,7 +7,10 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-from configuration import get_model_name, get_models_dir
+if __package__:
+    from .configuration import get_model_name, get_models_dir
+else:
+    from configuration import get_model_name, get_models_dir
 from dummy_llm import DummyLLM
 
 os.environ.setdefault("GPT4ALL_NO_CUDA", "1")

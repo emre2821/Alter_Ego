@@ -5,6 +5,10 @@ import json
 from pathlib import Path
 # Use local adapter which can delegate to Lyss if available
 from chaos_parser_core import parse_chaos_file
+if __package__:
+    from .configuration import get_persona_root
+else:
+    from configuration import get_persona_root
 
 class Persona:
     def __init__(self, name, tone, keywords, phrases, overrides):
@@ -21,7 +25,9 @@ class Persona:
         return styled + f"\n-- [{self.name}]"
 
 class PersonaSimulator:
-    def __init__(self, persona_dir="./personas"):
+    def __init__(self, persona_dir=None):
+        if persona_dir is None:
+            persona_dir = get_persona_root()
         # Resolve persona_dir relative to this file if the provided path doesn't exist
         p = Path(persona_dir)
         if not p.exists():

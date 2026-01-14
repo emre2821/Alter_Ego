@@ -9,7 +9,10 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     from echo_whisper_layer import analyze_emotion  # type: ignore
 
-from configuration import get_persona_root
+if __package__:
+    from .configuration import get_persona_root
+else:
+    from configuration import get_persona_root
 from persona_fronting import PersonaFronting
 from persona_simulator import PersonaSimulator
 
