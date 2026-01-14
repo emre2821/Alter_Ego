@@ -17,7 +17,7 @@ python src/alter_ego/alter_ego_computer.py init
 # python src/alter_ego/alter_ego_computer.py ingest "C:\Path\To\Your\Memories"
 
 # Launch the GUI via the CLI entrypoint. Runtime paths resolve through
-# configuration.py, so prefer editing alter_ego_config.yaml. Environment
+# configuration.py, so prefer editing assets/config/alter_ego_config.yaml. Environment
 # variables such as PERSONA_ROOT or GPT4ALL_MODEL_DIR remain available
 # for one-off overrides when you need to diverge from the documented
 # defaults.

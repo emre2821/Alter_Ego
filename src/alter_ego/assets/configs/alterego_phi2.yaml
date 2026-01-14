@@ -14,7 +14,7 @@ lora_target_modules:
   - out_proj
 
 datasets:
-  - path: datasets/alterego/alterego.jsonl
+  - path: assets/datasets/alterego/alterego.jsonl
     type: chat
 
 sequence_len: 1024

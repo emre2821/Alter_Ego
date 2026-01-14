@@ -41,4 +41,10 @@ build-backend = "setuptools.build_meta"
 packages = ["."]
 
 [tool.setuptools.package-data]
-"" = ["*.chaos", "*.json", "*.yaml", "eden.constitution.agent.chaosrights"]
+"" = [
+  "assets/**/*.chaos",
+  "assets/**/*.json",
+  "assets/**/*.jsonl",
+  "assets/**/*.yaml",
+  "assets/eden.constitution.agent.chaosrights"
+]

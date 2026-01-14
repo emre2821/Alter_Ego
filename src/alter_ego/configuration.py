@@ -22,9 +22,17 @@ except Exception:  # pragma: no cover - handled by returning defaults
     yaml = None  # type: ignore
 
 APP_ROOT = Path(__file__).resolve().parent
-CONFIG_FILE = APP_ROOT / "alter_ego_config.yaml"
+ASSETS_ROOT = APP_ROOT / "assets"
+CONFIG_DIR = ASSETS_ROOT / "config"
+DATASETS_DIR = ASSETS_ROOT / "datasets"
+THEMES_DIR = ASSETS_ROOT / "themes"
+CONFIG_FILE = CONFIG_DIR / "alter_ego_config.yaml"
+SYMBOLIC_CONFIG_FILE = CONFIG_DIR / "symbolic_config.yaml"
+GUI_CONFIG_FILE = CONFIG_DIR / "gui_config.json"
+CONSTITUTION_PATH = ASSETS_ROOT / "eden.constitution.agent.chaosrights"
 
-DEFAULT_LOG_PATH = APP_ROOT / "chaos_echo_log.chaos"
+LOGS_DIR = ASSETS_ROOT / "logs"
+DEFAULT_LOG_PATH = LOGS_DIR / "chaos_echo_log.chaos"
 
 # Legacy fallback used by early Windows builds that shipped personas in a
 # fixed location on C:\.  We still honour it so existing installations do
@@ -87,7 +95,7 @@ def get_persona_root(create: bool = True) -> Path:
     if LEGACY_PERSONA_ROOT.exists():
         return LEGACY_PERSONA_ROOT
 
-    fallback = APP_ROOT / "personas"
+    fallback = ASSETS_ROOT / "personas"
     if create:
         fallback.mkdir(parents=True, exist_ok=True)
     return fallback
@@ -114,7 +122,7 @@ def get_models_dir(create: bool = True) -> Path:
     if legacy.exists():
         return legacy
 
-    fallback = APP_ROOT / "models"
+    fallback = ASSETS_ROOT / "models"
     if create:
         fallback.mkdir(parents=True, exist_ok=True)
     return fallback
@@ -144,7 +152,7 @@ def get_memory_db_path() -> Path:
     if (cfg_path := _path_from_config("memory_db", "db_path")) is not None:
         return cfg_path
 
-    return APP_ROOT / "alter_ego_memory.db"
+    return ASSETS_ROOT / "alter_ego_memory.db"
 
 
 def get_default_log_path() -> Path:
@@ -189,6 +197,7 @@ def describe_data_locations() -> Dict[str, Path]:
     """Return a mapping of important runtime paths for documentation."""
 
     return {
+        "assets_root": ASSETS_ROOT,
         "personas": get_persona_root(create=False),
         "models": get_models_dir(create=False),
         "memory_db": get_memory_db_path(),
@@ -196,14 +205,65 @@ def describe_data_locations() -> Dict[str, Path]:
     }
 
 
+def get_assets_root() -> Path:
+    """Return the root directory for bundled assets."""
+
+    return ASSETS_ROOT
+
+
+def get_config_path() -> Path:
+    """Return the main configuration YAML path."""
+
+    return CONFIG_FILE
+
+
+def get_symbolic_config_path() -> Path:
+    """Return the symbolic configuration YAML path."""
+
+    return SYMBOLIC_CONFIG_FILE
+
+
+def get_gui_config_path() -> Path:
+    """Return the GUI preference JSON path."""
+
+    return GUI_CONFIG_FILE
+
+
+def get_dataset_root() -> Path:
+    """Return the root directory for bundled datasets."""
+
+    return DATASETS_DIR
+
+
+def get_theme_root() -> Path:
+    """Return the root directory for bundled themes."""
+
+    return THEMES_DIR
+
+
+def get_constitution_path() -> Path:
+    """Return the Eden constitution path."""
+
+    return CONSTITUTION_PATH
+
+
 __all__ = [
+    "ASSETS_ROOT",
+    "CONFIG_DIR",
     "describe_data_locations",
+    "get_assets_root",
+    "get_config_path",
+    "get_constitution_path",
+    "get_dataset_root",
     "get_default_log_path",
+    "get_gui_config_path",
     "get_log_path",
     "get_memory_db_path",
     "get_model_name",
     "get_models_dir",
     "get_persona_root",
+    "get_symbolic_config_path",
     "get_switch_log_path",
+    "get_theme_root",
     "load_configuration",
 ]

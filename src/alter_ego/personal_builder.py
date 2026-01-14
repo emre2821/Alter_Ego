@@ -3,9 +3,11 @@
 
 import json
 from pathlib import Path
+
+from configuration import get_persona_root
 from datetime import datetime, timezone
 
-SAVE_DIR = Path("./personas")
+SAVE_DIR = get_persona_root()
 SAVE_DIR.mkdir(exist_ok=True)
 
 def build_persona():
