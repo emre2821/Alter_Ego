@@ -16,7 +16,10 @@ from chaos_rag_wrapper import (
     get_shared_model,
     set_model_selection,
 )
-from configuration import get_memory_db_path
+if __package__:
+    from .configuration import get_memory_db_path
+else:
+    from configuration import get_memory_db_path
 from persona_fronting import PersonaFronting
 from sqlite_memory import add as mem_add, init_db, search
 

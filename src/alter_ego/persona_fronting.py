@@ -6,7 +6,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from configuration import get_switch_log_path
+if __package__:
+    from .configuration import get_switch_log_path
+else:
+    from configuration import get_switch_log_path
 
 class PersonaFronting:
     def __init__(self):

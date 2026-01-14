@@ -6,7 +6,10 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from configuration import get_model_name, get_models_dir
+if __package__ and __package__.startswith("alter_ego"):
+    from ..configuration import get_model_name, get_models_dir
+else:
+    from configuration import get_model_name, get_models_dir
 
 log = logging.getLogger("alter_ego_gui.models")
 

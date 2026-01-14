@@ -23,6 +23,11 @@ try:  # Prefer PyYAML when available
 except Exception:  # pragma: no cover - defensive branch
     yaml = None
 
+if __package__:
+    from .configuration import get_dataset_root
+else:
+    from configuration import get_dataset_root
+
 log = logging.getLogger("dummy_llm")
 
 

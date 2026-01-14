@@ -62,13 +62,14 @@ def _env(name: str) -> Optional[str]:
 def load_configuration() -> Dict[str, Any]:
     """Return the parsed YAML configuration as a dictionary."""
 
-    if not CONFIG_FILE.exists() or yaml is None:
+    config_path = get_config_path()
+    if not config_path.exists() or yaml is None:
         return {}
 
     try:
-        loaded = yaml.safe_load(CONFIG_FILE.read_text(encoding="utf-8"))
+        loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     except Exception as exc:
-        log.warning("Failed to parse %s: %s", CONFIG_FILE, exc)
+        log.warning("Failed to parse %s: %s", config_path, exc)
         return {}
 
     return loaded or {}
@@ -83,11 +84,118 @@ def _path_from_config(*keys: str) -> Optional[Path]:
     return None
 
 
+def _default_assets_root() -> Path:
+    if env := _env("ALTER_EGO_ASSETS_ROOT"):
+        return _expand(env)
+    if env := _env("ASSETS_ROOT"):
+        return _expand(env)
+    # Default to the standard assets/ directory; callers can decide whether to create it.
+    return ASSETS_ROOT
+
+
+def get_assets_root(create: bool = True) -> Path:
+    """Return the directory that stores Alter/Ego assets."""
+
+    root = _default_assets_root()
+    if create:
+        root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _resolve_assets_subdir(dirname: str, legacy_path: Path, create: bool) -> Path:
+    assets_root = get_assets_root(create=create)
+    assets_path = assets_root / dirname
+    if assets_root != APP_ROOT:
+        if create:
+            assets_path.mkdir(parents=True, exist_ok=True)
+        return assets_path
+    if create:
+        legacy_path.mkdir(parents=True, exist_ok=True)
+    return legacy_path
+
+
+def _resolve_assets_file(filename: str, legacy_path: Path) -> Path:
+    assets_root = get_assets_root(create=False)
+    assets_path = assets_root / filename
+    if assets_root != APP_ROOT:
+        return assets_path
+    return legacy_path
+
+
+def get_config_path() -> Path:
+    """Return the path to the main Alter/Ego configuration file."""
+
+    if env := _env("ALTER_EGO_CONFIG_PATH"):
+        return _expand(env)
+    if CONFIG_PATH != CONFIG_FILE:
+        return CONFIG_PATH
+    if CONFIG_FILE != APP_ROOT / DEFAULT_CONFIG_FILENAME:
+        return CONFIG_FILE
+    return _resolve_assets_file(DEFAULT_CONFIG_FILENAME, CONFIG_FILE)
+
+
+def get_symbolic_config_path() -> Path:
+    """Return the path to the symbolic configuration file."""
+
+    if env := _env("ALTER_EGO_SYMBOLIC_CONFIG_PATH"):
+        return _expand(env)
+    return _resolve_assets_file(DEFAULT_SYMBOLIC_CONFIG_FILENAME, SYMBOLIC_CONFIG_PATH)
+
+
+def get_gui_config_path() -> Path:
+    """Return the path to the GUI configuration file."""
+
+    if env := _env("ALTER_EGO_GUI_CONFIG_PATH"):
+        return _expand(env)
+    return _resolve_assets_file(DEFAULT_GUI_CONFIG_FILENAME, GUI_CONFIG_PATH)
+
+
+def get_constitution_path() -> Path:
+    """Return the path to the Eden constitution file."""
+
+    if env := _env("ALTER_EGO_CONSTITUTION_PATH"):
+        return _expand(env)
+    return _resolve_assets_file(DEFAULT_CONSTITUTION_FILENAME, CONSTITUTION_PATH)
+
+
+def get_dataset_root(create: bool = True) -> Path:
+    """Return the directory that stores dataset assets."""
+
+    if env := _env("ALTER_EGO_DATASET_ROOT"):
+        path = _expand(env)
+    elif env := _env("DATASET_ROOT"):
+        path = _expand(env)
+    else:
+        legacy = APP_ROOT / DEFAULT_DATASET_DIRNAME
+        return _resolve_assets_subdir(DEFAULT_DATASET_DIRNAME, legacy, create=create)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_theme_root(create: bool = True) -> Path:
+    """Return the directory that stores theme assets."""
+
+    if env := _env("ALTER_EGO_THEME_ROOT"):
+        path = _expand(env)
+    elif env := _env("THEME_DIR"):
+        path = _expand(env)
+    else:
+        legacy = APP_ROOT / DEFAULT_THEME_DIRNAME
+        return _resolve_assets_subdir(DEFAULT_THEME_DIRNAME, legacy, create=create)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def get_persona_root(create: bool = True) -> Path:
     """Return the directory that stores persona definitions."""
 
     if env := _env("PERSONA_ROOT"):
-        return _expand(env)
+        path = _expand(env)
+        if create:
+            path.mkdir(parents=True, exist_ok=True)
+        return path
 
     if (cfg_path := _path_from_config("persona_root", "persona_dir")) is not None:
         return cfg_path
@@ -200,6 +308,8 @@ def describe_data_locations() -> Dict[str, Path]:
         "assets_root": ASSETS_ROOT,
         "personas": get_persona_root(create=False),
         "models": get_models_dir(create=False),
+        "datasets": get_dataset_root(create=False),
+        "themes": get_theme_root(create=False),
         "memory_db": get_memory_db_path(),
         "autosave_log": get_log_path(),
     }
@@ -266,4 +376,5 @@ __all__ = [
     "get_switch_log_path",
     "get_theme_root",
     "load_configuration",
+    "save_config",
 ]

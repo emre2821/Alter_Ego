@@ -11,7 +11,10 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 
 from alter_shell import AlterShell
-from configuration import get_persona_root
+if __package__:
+    from .configuration import get_persona_root
+else:
+    from configuration import get_persona_root
 from gui.models import (
     STARTER_MODEL,
     current_selection,

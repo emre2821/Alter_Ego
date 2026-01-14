@@ -7,6 +7,10 @@ from pathlib import Path
 from configuration import get_persona_root
 # Use local adapter which can delegate to Lyss if available
 from chaos_parser_core import parse_chaos_file
+if __package__:
+    from .configuration import get_persona_root
+else:
+    from configuration import get_persona_root
 
 class Persona:
     def __init__(self, name, tone, keywords, phrases, overrides):
