@@ -2,7 +2,6 @@
 # Keeps record of all known personas and metadata
 
 import json
-from pathlib import Path
 
 from configuration import get_persona_root
 

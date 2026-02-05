@@ -2,7 +2,6 @@
 # Wizard to generate new persona config files
 
 import json
-from pathlib import Path
 
 from configuration import get_persona_root
 from datetime import datetime, timezone

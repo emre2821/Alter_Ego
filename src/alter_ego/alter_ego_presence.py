@@ -3,7 +3,6 @@
 
 import tkinter as tk
 from tkinter import scrolledtext
-from pathlib import Path
 import pyttsx3
 from alter_ego_computer import load_config, MemoryBank, Embedder, LLM, make_prompt, retrieve_context, save_memory
 from configuration import get_config_path
