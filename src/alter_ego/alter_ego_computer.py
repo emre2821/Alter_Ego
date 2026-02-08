@@ -150,9 +150,13 @@ class Config(BaseModel):
 # --------- Utility ----------
 def load_config(cfg_path: Path) -> Config:
     if cfg_path.exists():
-        data = yaml.safe_load(cfg_path.read_text()) or {}
-        if not isinstance(data, dict):
+        loaded = yaml.safe_load(cfg_path.read_text())
+        if loaded is None:
+            data: Dict[str, Any] = {}
+        elif not isinstance(loaded, dict):
             raise ValueError("Config file must contain a mapping of settings.")
+        else:
+            data = loaded
         return Config(**data)
     cfg = Config()
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
